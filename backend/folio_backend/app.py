@@ -12,7 +12,7 @@ from folio_backend.models import (
 )
 
 
-def create_app(db_path):
+def create_app(db_path, static_dir=None):
     init_db(connect(db_path))
     app = FastAPI(title="folio-backend")
     app.state.db_path = db_path
@@ -222,5 +222,12 @@ def create_app(db_path):
     @app.delete("/summaries/{summary_id}", status_code=204)
     def delete_summary_ep(summary_id: int, conn=Depends(db)):
         store.delete_summary(conn, summary_id)
+
+    # ---- serve built SPA at /folio (env-gated) ----
+    resolved_static = static_dir or os.environ.get("FOLIO_STATIC_DIR")
+    if resolved_static and os.path.isdir(resolved_static):
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/folio", StaticFiles(directory=resolved_static, html=True),
+                  name="folio")
 
     return app
