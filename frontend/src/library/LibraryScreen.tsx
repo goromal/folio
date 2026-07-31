@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Book } from '../api/client';
+import { UploadDropzone } from './UploadDropzone';
 import styles from './LibraryScreen.module.css';
 
 export function LibraryScreen() {
@@ -26,6 +27,7 @@ export function LibraryScreen() {
 
   return (
     <main className={styles.library}>
+      <UploadDropzone onUploaded={refresh} />
       {error && <p role="alert">{error}</p>}
       <ul className={styles.grid}>
         {books.map((b) => (
