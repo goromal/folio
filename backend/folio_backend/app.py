@@ -76,4 +76,54 @@ def create_app(db_path):
         hits = search_mod.search_blocks(conn, q, limit=limit)
         return [h for h in hits if h["book_id"] == book_id]
 
+    # ---- passages + attachments ----
+    @app.post("/passages", status_code=201, response_model=PassageOut)
+    def create_passage_ep(p: PassageIn, conn=Depends(db)):
+        pid = store.create_passage(conn, p.book_id, p.start_block, p.start_off,
+                                   p.end_block, p.end_off)
+        return dict(store.get_passage(conn, pid))
+
+    @app.get("/passages/{passage_id}")
+    def get_passage_ep(passage_id: int, conn=Depends(db)):
+        p = store.get_passage(conn, passage_id)
+        if p is None:
+            raise HTTPException(404, "passage not found")
+        highlights = conn.execute(
+            "SELECT id, color FROM highlights WHERE passage_id = ? ORDER BY id",
+            (passage_id,)).fetchall()
+        notes = conn.execute(
+            "SELECT id, body, created_at, updated_at FROM notes "
+            "WHERE passage_id = ? ORDER BY id", (passage_id,)).fetchall()
+        tags = store.get_passage_tags(conn, passage_id)
+        result = dict(p)
+        result["highlights"] = [dict(h) for h in highlights]
+        result["notes"] = [dict(n) for n in notes]
+        result["tags"] = [dict(t) for t in tags]
+        return result
+
+    @app.post("/passages/{passage_id}/highlights", status_code=201)
+    def add_highlight_ep(passage_id: int, h: HighlightIn, conn=Depends(db)):
+        hid = store.add_highlight(conn, passage_id, color=h.color)
+        return {"id": hid}
+
+    @app.post("/notes", status_code=201)
+    def add_note_ep(n: NoteIn, conn=Depends(db)):
+        try:
+            nid = store.add_note(conn, n.body, passage_id=n.passage_id,
+                                 chapter_id=n.chapter_id, book_id=n.book_id)
+        except Exception as e:
+            raise HTTPException(400, f"invalid note scope: {e}")
+        return {"id": nid}
+
+    @app.put("/notes/{note_id}", status_code=200)
+    def update_note_ep(note_id: int, n: NoteUpdate, conn=Depends(db)):
+        store.update_note(conn, note_id, n.body)
+        return {"id": note_id}
+
+    @app.post("/passages/{passage_id}/tags", status_code=201)
+    def tag_passage_ep(passage_id: int, t: TagIn, conn=Depends(db)):
+        tag_id = store.add_tag(conn, t.name)
+        store.tag_passage(conn, passage_id, tag_id)
+        return {"tag_id": tag_id}
+
     return app
