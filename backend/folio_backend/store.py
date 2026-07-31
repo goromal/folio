@@ -71,3 +71,34 @@ def get_passage_tags(conn, passage_id):
         "SELECT t.id, t.name FROM tags t "
         "JOIN passage_tags pt ON pt.tag_id = t.id "
         "WHERE pt.passage_id = ? ORDER BY t.name", (passage_id,)).fetchall()
+
+
+# ---- passage links --------------------------------------------------------
+def link_passages(conn, from_passage, to_passage, note=None):
+    cur = conn.execute(
+        "INSERT INTO passage_links (from_passage, to_passage, note) VALUES (?,?,?)",
+        (from_passage, to_passage, note))
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_links(conn, passage_id):
+    return conn.execute(
+        "SELECT * FROM passage_links WHERE from_passage = ? ORDER BY id",
+        (passage_id,)).fetchall()
+
+
+# ---- summaries ------------------------------------------------------------
+def create_summary(conn, scope, scope_id, body, generated_by="user"):
+    cur = conn.execute(
+        "INSERT INTO summaries (scope, scope_id, body, generated_by, created_at) "
+        "VALUES (?,?,?,?,?)",
+        (scope, scope_id, body, generated_by, _now()))
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_summaries(conn, scope, scope_id):
+    return conn.execute(
+        "SELECT * FROM summaries WHERE scope = ? AND scope_id = ? ORDER BY id",
+        (scope, scope_id)).fetchall()
