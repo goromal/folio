@@ -35,7 +35,10 @@ def create_app(db_path):
         tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
         tmp.write(file.file.read())
         tmp.close()
-        book_id = ingest.ingest_epub(conn, tmp.name)
+        try:
+            book_id = ingest.ingest_epub(conn, tmp.name)
+        finally:
+            os.unlink(tmp.name)
         row = conn.execute("SELECT id, title, author FROM books WHERE id = ?",
                            (book_id,)).fetchone()
         return dict(row)
@@ -73,8 +76,7 @@ def create_app(db_path):
 
     @app.get("/books/{book_id}/blocks/search", response_model=list[SearchHit])
     def search_blocks_ep(book_id: int, q: str, limit: int = 20, conn=Depends(db)):
-        hits = search_mod.search_blocks(conn, q, limit=limit)
-        return [h for h in hits if h["book_id"] == book_id]
+        return search_mod.search_blocks(conn, q, limit=limit, book_id=book_id)
 
     # ---- passages + attachments ----
     @app.post("/passages", status_code=201, response_model=PassageOut)

@@ -44,9 +44,15 @@ def ingest_epub(conn, path):
 
     order = 0
     chap_order = 0
-    for idref, _linear in book.spine:
+    for idref, linear in book.spine:
         item = book.get_item_with_id(idref)
         if item is None or item.get_type() != ebooklib.ITEM_DOCUMENT:
+            continue
+        if linear == "no":
+            continue
+        if isinstance(item, epub.EpubNav):
+            continue
+        if "nav" in (getattr(item, "properties", None) or []):
             continue
         soup = BeautifulSoup(item.get_content(), "html.parser")
         heading = soup.find(["h1", "h2", "h3"])
