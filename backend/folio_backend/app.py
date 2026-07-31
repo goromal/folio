@@ -126,4 +126,24 @@ def create_app(db_path):
         store.tag_passage(conn, passage_id, tag_id)
         return {"tag_id": tag_id}
 
+    # ---- links + summaries ----
+    @app.post("/passages/{passage_id}/links", status_code=201)
+    def create_link_ep(passage_id: int, link: LinkIn, conn=Depends(db)):
+        lid = store.link_passages(conn, passage_id, link.to_passage, note=link.note)
+        return {"id": lid}
+
+    @app.get("/passages/{passage_id}/links")
+    def list_links_ep(passage_id: int, conn=Depends(db)):
+        return [dict(r) for r in store.get_links(conn, passage_id)]
+
+    @app.post("/summaries", status_code=201)
+    def create_summary_ep(s: SummaryIn, conn=Depends(db)):
+        sid = store.create_summary(conn, s.scope, s.scope_id, s.body,
+                                   generated_by=s.generated_by)
+        return {"id": sid}
+
+    @app.get("/summaries")
+    def list_summaries_ep(scope: str, scope_id: int, conn=Depends(db)):
+        return [dict(r) for r in store.get_summaries(conn, scope, scope_id)]
+
     return app
