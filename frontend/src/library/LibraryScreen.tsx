@@ -21,8 +21,12 @@ export function LibraryScreen() {
   }, [refresh]);
 
   async function remove(id: number) {
-    await api.deleteBook(id);
-    await refresh();
+    try {
+      await api.deleteBook(id);
+      await refresh();
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   return (

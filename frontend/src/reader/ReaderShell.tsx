@@ -11,15 +11,25 @@ export function ReaderShell() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [activeChapter, setActiveChapter] = useState<number | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    // Reset on book switch so stale chapters/blocks don't linger and effect-2
+    // can't fire a mismatched getBlocks(newBook, oldChapter).
+    setChapters([]);
+    setActiveChapter(null);
+    setBlocks([]);
+    setError(null);
     void (async () => {
-      const toc = await api.getToc(id);
-      if (cancelled) return;
-      setChapters(toc);
-      const first = toc[0]?.id ?? null;
-      setActiveChapter(first);
+      try {
+        const toc = await api.getToc(id);
+        if (cancelled) return;
+        setChapters(toc);
+        setActiveChapter(toc[0]?.id ?? null);
+      } catch (e) {
+        if (!cancelled) setError(String(e));
+      }
     })();
     return () => {
       cancelled = true;
@@ -30,8 +40,12 @@ export function ReaderShell() {
     if (activeChapter == null) return;
     let cancelled = false;
     void (async () => {
-      const b = await api.getBlocks(id, activeChapter);
-      if (!cancelled) setBlocks(b);
+      try {
+        const b = await api.getBlocks(id, activeChapter);
+        if (!cancelled) setBlocks(b);
+      } catch (e) {
+        if (!cancelled) setError(String(e));
+      }
     })();
     return () => {
       cancelled = true;
@@ -44,6 +58,7 @@ export function ReaderShell() {
         <TocDrawer chapters={chapters} activeId={activeChapter} onSelect={setActiveChapter} />
       </aside>
       <section className={styles.content}>
+        {error && <p role="alert">{error}</p>}
         <BlockList blocks={blocks} />
       </section>
     </div>

@@ -51,3 +51,9 @@ test('selecting a chapter loads its blocks', async () => {
   );
   expect(api.getBlocks).toHaveBeenCalledWith(7, 2);
 });
+
+test('surfaces an alert when loading the TOC fails', async () => {
+  (api.getToc as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('toc boom'));
+  renderReader();
+  expect(await screen.findByRole('alert')).toHaveTextContent(/toc boom/);
+});

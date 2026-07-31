@@ -47,6 +47,7 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
           disabled={busy}
           onChange={(e) => {
             const file = e.target.files?.[0];
+            e.target.value = ''; // allow re-selecting the same filename (e.g. after a failed upload)
             if (file) void upload(file);
           }}
         />

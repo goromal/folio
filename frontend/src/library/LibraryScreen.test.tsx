@@ -41,3 +41,11 @@ test('delete calls api and refreshes', async () => {
   expect(api.deleteBook).toHaveBeenCalledWith(1);
   await waitFor(() => expect(api.listBooks).toHaveBeenCalledTimes(2));
 });
+
+test('surfaces an alert when delete fails', async () => {
+  (api.deleteBook as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('del boom'));
+  renderLib();
+  await screen.findByText('Critique');
+  await userEvent.click(screen.getByRole('button', { name: 'Delete Critique' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(/del boom/);
+});
