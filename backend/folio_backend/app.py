@@ -194,4 +194,33 @@ def create_app(db_path):
             (book_id, book_id)).fetchall()
         return [dict(r) for r in rows]
 
+    # ---- deletes ----
+    @app.delete("/books/{book_id}", status_code=204)
+    def delete_book_ep(book_id: int, conn=Depends(db)):
+        store.delete_book(conn, book_id)
+
+    @app.delete("/passages/{passage_id}", status_code=204)
+    def delete_passage_ep(passage_id: int, conn=Depends(db)):
+        store.delete_passage(conn, passage_id)
+
+    @app.delete("/highlights/{highlight_id}", status_code=204)
+    def delete_highlight_ep(highlight_id: int, conn=Depends(db)):
+        store.delete_highlight(conn, highlight_id)
+
+    @app.delete("/notes/{note_id}", status_code=204)
+    def delete_note_ep(note_id: int, conn=Depends(db)):
+        store.delete_note(conn, note_id)
+
+    @app.delete("/passages/{passage_id}/tags/{tag_id}", status_code=204)
+    def untag_passage_ep(passage_id: int, tag_id: int, conn=Depends(db)):
+        store.untag_passage(conn, passage_id, tag_id)
+
+    @app.delete("/links/{link_id}", status_code=204)
+    def delete_link_ep(link_id: int, conn=Depends(db)):
+        store.delete_link(conn, link_id)
+
+    @app.delete("/summaries/{summary_id}", status_code=204)
+    def delete_summary_ep(summary_id: int, conn=Depends(db)):
+        store.delete_summary(conn, summary_id)
+
     return app

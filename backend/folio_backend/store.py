@@ -102,3 +102,40 @@ def get_summaries(conn, scope, scope_id):
     return conn.execute(
         "SELECT * FROM summaries WHERE scope = ? AND scope_id = ? ORDER BY id",
         (scope, scope_id)).fetchall()
+
+
+# ---- deletes --------------------------------------------------------------
+def delete_book(conn, book_id):
+    conn.execute("DELETE FROM books WHERE id = ?", (book_id,))
+    conn.commit()
+
+
+def delete_passage(conn, passage_id):
+    conn.execute("DELETE FROM passages WHERE id = ?", (passage_id,))
+    conn.commit()
+
+
+def delete_highlight(conn, highlight_id):
+    conn.execute("DELETE FROM highlights WHERE id = ?", (highlight_id,))
+    conn.commit()
+
+
+def delete_note(conn, note_id):
+    conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+    conn.commit()
+
+
+def untag_passage(conn, passage_id, tag_id):
+    conn.execute("DELETE FROM passage_tags WHERE passage_id = ? AND tag_id = ?",
+                 (passage_id, tag_id))
+    conn.commit()
+
+
+def delete_link(conn, link_id):
+    conn.execute("DELETE FROM passage_links WHERE id = ?", (link_id,))
+    conn.commit()
+
+
+def delete_summary(conn, summary_id):
+    conn.execute("DELETE FROM summaries WHERE id = ?", (summary_id,))
+    conn.commit()
