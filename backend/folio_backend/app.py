@@ -57,4 +57,23 @@ def create_app(db_path):
                 raise HTTPException(404, "book not found")
         return [dict(r) for r in rows]
 
+    # ---- blocks ----
+    @app.get("/books/{book_id}/blocks", response_model=list[BlockOut])
+    def list_blocks(book_id: int, chapter_id: int | None = None, conn=Depends(db)):
+        if chapter_id is None:
+            rows = conn.execute(
+                "SELECT id, chapter_id, order_idx, type, text FROM blocks "
+                "WHERE book_id = ? ORDER BY order_idx", (book_id,)).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, chapter_id, order_idx, type, text FROM blocks "
+                "WHERE book_id = ? AND chapter_id = ? ORDER BY order_idx",
+                (book_id, chapter_id)).fetchall()
+        return [dict(r) for r in rows]
+
+    @app.get("/books/{book_id}/blocks/search", response_model=list[SearchHit])
+    def search_blocks_ep(book_id: int, q: str, limit: int = 20, conn=Depends(db)):
+        hits = search_mod.search_blocks(conn, q, limit=limit)
+        return [h for h in hits if h["book_id"] == book_id]
+
     return app
