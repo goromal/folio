@@ -1,0 +1,7 @@
+.reader { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; padding: 1rem; }
+.toc { border-right: 1px solid var(--border); padding-right: 1rem; }
+.content { font-size: var(--reader-fs); line-height: 1.6; max-width: 42rem; }
+@media (max-width: 640px) {
+  .reader { grid-template-columns: 1fr; }
+  .toc { border-right: none; border-bottom: 1px solid var(--border); padding-right: 0; }
+}
