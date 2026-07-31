@@ -148,4 +148,50 @@ def create_app(db_path):
     def list_summaries_ep(scope: str, scope_id: int, conn=Depends(db)):
         return [dict(r) for r in store.get_summaries(conn, scope, scope_id)]
 
+    # ---- annotation lists (MCP + notes view) ----
+    @app.get("/books/{book_id}/notes")
+    def list_book_notes(book_id: int, chapter_id: int | None = None, conn=Depends(db)):
+        if chapter_id is not None:
+            rows = conn.execute(
+                "SELECT id, passage_id, chapter_id, book_id, body, created_at, updated_at "
+                "FROM notes WHERE chapter_id = ? ORDER BY id", (chapter_id,)).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, passage_id, chapter_id, book_id, body, created_at, updated_at "
+                "FROM notes WHERE book_id = ? "
+                "OR passage_id IN (SELECT id FROM passages WHERE book_id = ?) "
+                "OR chapter_id IN (SELECT id FROM chapters WHERE book_id = ?) "
+                "ORDER BY id", (book_id, book_id, book_id)).fetchall()
+        return [dict(r) for r in rows]
+
+    @app.get("/books/{book_id}/passages")
+    def list_book_passages(book_id: int, conn=Depends(db)):
+        prows = conn.execute(
+            "SELECT * FROM passages WHERE book_id = ? ORDER BY id", (book_id,)).fetchall()
+        result = []
+        for p in prows:
+            pid = p["id"]
+            highlights = conn.execute(
+                "SELECT id, color FROM highlights WHERE passage_id = ? ORDER BY id",
+                (pid,)).fetchall()
+            notes = conn.execute(
+                "SELECT id, body, created_at, updated_at FROM notes "
+                "WHERE passage_id = ? ORDER BY id", (pid,)).fetchall()
+            tags = store.get_passage_tags(conn, pid)
+            d = dict(p)
+            d["highlights"] = [dict(h) for h in highlights]
+            d["notes"] = [dict(n) for n in notes]
+            d["tags"] = [dict(t) for t in tags]
+            result.append(d)
+        return result
+
+    @app.get("/books/{book_id}/summaries")
+    def list_book_summaries(book_id: int, conn=Depends(db)):
+        rows = conn.execute(
+            "SELECT * FROM summaries WHERE (scope = 'book' AND scope_id = ?) "
+            "OR (scope = 'chapter' AND scope_id IN "
+            "(SELECT id FROM chapters WHERE book_id = ?)) ORDER BY id",
+            (book_id, book_id)).fetchall()
+        return [dict(r) for r in rows]
+
     return app
