@@ -31,3 +31,8 @@ body {
   color: var(--fg);
   font-family: system-ui, -apple-system, sans-serif;
 }
+
+::highlight(folio-yellow) { background-color: var(--hl-yellow); }
+::highlight(folio-green)  { background-color: var(--hl-green); }
+::highlight(folio-blue)   { background-color: var(--hl-blue); }
+::highlight(folio-pink)   { background-color: var(--hl-pink); }
