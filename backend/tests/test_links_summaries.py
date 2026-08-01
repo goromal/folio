@@ -28,6 +28,13 @@ class LinksSummariesTest(unittest.TestCase):
         self.assertEqual(links[0]["note"], "related")
         self.assertEqual(links[0]["id"], lid)
 
+    def test_link_is_bidirectional(self):
+        lid = store.link_passages(self.conn, self.p1, self.p2)
+        # the link surfaces from the target end too
+        links = store.get_links(self.conn, self.p2)
+        self.assertEqual([l["id"] for l in links], [lid])
+        self.assertEqual(links[0]["from_passage"], self.p1)
+
     def test_summary_default_generated_by(self):
         sid = store.create_summary(self.conn, "book", self.book_id, "the gist")
         rows = store.get_summaries(self.conn, "book", self.book_id)

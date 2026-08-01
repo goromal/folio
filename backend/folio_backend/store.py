@@ -83,9 +83,10 @@ def link_passages(conn, from_passage, to_passage, note=None):
 
 
 def get_links(conn, passage_id):
+    # Bidirectional: a link relates two passages, so it surfaces on both ends.
     return conn.execute(
-        "SELECT * FROM passage_links WHERE from_passage = ? ORDER BY id",
-        (passage_id,)).fetchall()
+        "SELECT * FROM passage_links WHERE from_passage = ? OR to_passage = ? ORDER BY id",
+        (passage_id, passage_id)).fetchall()
 
 
 # ---- summaries ------------------------------------------------------------

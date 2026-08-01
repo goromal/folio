@@ -25,6 +25,7 @@ export function ReaderShell() {
   const [passages, setPassages] = useState<PassageDetail[]>([]);
   const [openPassage, setOpenPassage] = useState<PassageDetail | null>(null);
   const [openLinks, setOpenLinks] = useState<Link[]>([]);
+  const [allBlocks, setAllBlocks] = useState<Block[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tocOpen, setTocOpen] = useState(
     () => typeof window === 'undefined' || window.innerWidth >= 800,
@@ -121,6 +122,21 @@ export function ReaderShell() {
     return () => { cancelled = true; };
   }, [id, activeChapter]);
 
+  // All blocks (whole book) — resolves link/passage preview text across chapters
+  // (the paginator's `blocks` only holds the active chapter).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const b = await api.getBlocks(id);
+        if (!cancelled) setAllBlocks(b);
+      } catch {
+        /* previews just fall back to "passage N" */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
   useEffect(() => { void refreshPassages(); }, [refreshPassages]);
 
   // Repaint whenever the rendered blocks or the passage set changes.
@@ -176,7 +192,7 @@ export function ReaderShell() {
   const linkTargets = openPassage
     ? passages
         .filter((p) => p.id !== openPassage.id)
-        .map((p) => ({ id: p.id, preview: passageText(blocks, p).slice(0, 80) || `passage ${p.id}` }))
+        .map((p) => ({ id: p.id, preview: passageText(allBlocks, p).slice(0, 80) || `passage ${p.id}` }))
     : [];
 
   return (

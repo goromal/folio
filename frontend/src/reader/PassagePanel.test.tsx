@@ -83,3 +83,23 @@ test('the link picker filters and creates a link', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'the categorical imperative' }));
   expect(h.onCreateLink).toHaveBeenCalledWith(8);
 });
+
+test('shows the other end when this passage is the link target (bidirectional)', () => {
+  // passage.id === 5; the link is 8 -> 5, so the panel should show passage 8.
+  render(
+    <PassagePanel
+      passage={passage}
+      links={[{ id: 4, from_passage: 8, to_passage: 5, note: null }]}
+      linkTargets={[{ id: 8, preview: 'the categorical imperative' }]}
+      onAddNote={vi.fn()}
+      onEditNote={vi.fn()}
+      onAddTag={vi.fn()}
+      onRemoveTag={vi.fn()}
+      onDelete={vi.fn()}
+      onClose={vi.fn()}
+      onCreateLink={vi.fn()}
+      onRemoveLink={vi.fn()}
+    />,
+  );
+  expect(screen.getAllByText('the categorical imperative').length).toBeGreaterThan(0);
+});

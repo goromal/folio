@@ -144,20 +144,24 @@ export function PassagePanel({
         <h3 className={styles.heading}>Links</h3>
         {links.length === 0 && <p className={styles.empty}>No links yet.</p>}
         <ul className={styles.notes}>
-          {links.map((l) => (
-            <li key={l.id} className={styles.note}>
-              <span className={styles.noteBody}>
-                {linkTargets.find((t) => t.id === l.to_passage)?.preview ?? `passage ${l.to_passage}`}
-              </span>
-              <button
-                aria-label="Remove link"
-                className={styles.noteEdit}
-                onClick={() => onRemoveLink(l.id)}
-              >
-                Remove
-              </button>
-            </li>
-          ))}
+          {links.map((l) => {
+            // Links are bidirectional; show whichever end ISN'T this passage.
+            const otherId = l.from_passage === passage.id ? l.to_passage : l.from_passage;
+            return (
+              <li key={l.id} className={styles.note}>
+                <span className={styles.noteBody}>
+                  {linkTargets.find((t) => t.id === otherId)?.preview ?? `passage ${otherId}`}
+                </span>
+                <button
+                  aria-label="Remove link"
+                  className={styles.noteEdit}
+                  onClick={() => onRemoveLink(l.id)}
+                >
+                  Remove
+                </button>
+              </li>
+            );
+          })}
         </ul>
         <LinkPicker targets={linkTargets} onPick={onCreateLink} />
       </section>
