@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { PassageDetail } from '../api/client';
+import type { Link, PassageDetail } from '../api/client';
 import styles from './PassagePanel.module.css';
 
 export function PassagePanel({
@@ -10,6 +10,10 @@ export function PassagePanel({
   onRemoveTag,
   onDelete,
   onClose,
+  links,
+  linkTargets,
+  onCreateLink,
+  onRemoveLink,
 }: {
   passage: PassageDetail;
   onAddNote: (body: string) => void;
@@ -18,6 +22,10 @@ export function PassagePanel({
   onRemoveTag: (tagId: number) => void;
   onDelete: () => void;
   onClose: () => void;
+  links: Link[];
+  linkTargets: { id: number; preview: string }[];
+  onCreateLink: (toPassageId: number) => void;
+  onRemoveLink: (linkId: number) => void;
 }) {
   const [note, setNote] = useState('');
   const [tag, setTag] = useState('');
@@ -132,11 +140,72 @@ export function PassagePanel({
         </div>
       </section>
 
+      <section className={styles.section}>
+        <h3 className={styles.heading}>Links</h3>
+        {links.length === 0 && <p className={styles.empty}>No links yet.</p>}
+        <ul className={styles.notes}>
+          {links.map((l) => (
+            <li key={l.id} className={styles.note}>
+              <span className={styles.noteBody}>
+                {linkTargets.find((t) => t.id === l.to_passage)?.preview ?? `passage ${l.to_passage}`}
+              </span>
+              <button
+                aria-label="Remove link"
+                className={styles.noteEdit}
+                onClick={() => onRemoveLink(l.id)}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+        <LinkPicker targets={linkTargets} onPick={onCreateLink} />
+      </section>
+
       <footer className={styles.footer}>
         <button className={styles.danger} onClick={onDelete}>
           Delete passage
         </button>
       </footer>
     </aside>
+  );
+}
+
+function LinkPicker({
+  targets,
+  onPick,
+}: {
+  targets: { id: number; preview: string }[];
+  onPick: (id: number) => void;
+}) {
+  const [q, setQ] = useState('');
+  const filtered = q
+    ? targets.filter((t) => t.preview.toLowerCase().includes(q.toLowerCase()))
+    : targets;
+  return (
+    <div className={styles.tagAdd}>
+      <input
+        aria-label="Link to passage"
+        className={styles.input}
+        placeholder="Link to…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      <ul className={styles.notes}>
+        {filtered.slice(0, 8).map((t) => (
+          <li key={t.id}>
+            <button
+              className={styles.noteEdit}
+              onClick={() => {
+                onPick(t.id);
+                setQ('');
+              }}
+            >
+              {t.preview}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

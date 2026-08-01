@@ -15,8 +15,16 @@ function setup() {
   const handlers = {
     onAddNote: vi.fn(), onEditNote: vi.fn(), onAddTag: vi.fn(), onRemoveTag: vi.fn(),
     onDelete: vi.fn(), onClose: vi.fn(),
+    onCreateLink: vi.fn(), onRemoveLink: vi.fn(),
   };
-  render(<PassagePanel passage={passage} {...handlers} />);
+  render(
+    <PassagePanel
+      passage={passage}
+      links={[{ id: 3, from_passage: 5, to_passage: 8, note: null }]}
+      linkTargets={[{ id: 8, preview: 'the categorical imperative' }]}
+      {...handlers}
+    />,
+  );
   return handlers;
 }
 
@@ -60,4 +68,18 @@ test('adds and removes tags, and deletes the passage', async () => {
   expect(h.onRemoveTag).toHaveBeenCalledWith(2);
   await userEvent.click(screen.getByRole('button', { name: 'Delete passage' }));
   expect(h.onDelete).toHaveBeenCalled();
+});
+
+test('shows a link with its target preview and can remove it', async () => {
+  const h = setup();
+  expect(screen.getAllByText('the categorical imperative').length).toBeGreaterThan(0);
+  await userEvent.click(screen.getByRole('button', { name: 'Remove link' }));
+  expect(h.onRemoveLink).toHaveBeenCalledWith(3);
+});
+
+test('the link picker filters and creates a link', async () => {
+  const h = setup();
+  await userEvent.type(screen.getByLabelText('Link to passage'), 'categorical');
+  await userEvent.click(screen.getByRole('button', { name: 'the categorical imperative' }));
+  expect(h.onCreateLink).toHaveBeenCalledWith(8);
 });

@@ -191,6 +191,10 @@ export function ReaderShell() {
       {openPassage && (
         <PassagePanel
           passage={openPassage}
+          links={[]}
+          linkTargets={[]}
+          onCreateLink={() => {}}
+          onRemoveLink={() => {}}
           onAddNote={async (body) => {
             await api.addNote(openPassage.id, body);
             const p = await api.getPassage(openPassage.id);
