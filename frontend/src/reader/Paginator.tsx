@@ -1,8 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect,
+  useRef, useState, type ReactNode,
+} from 'react';
 import { computePageCount, clampPage, translateXFor } from './pagination';
 import styles from './Paginator.module.css';
 
-export function Paginator({ children, resetKey }: { children: ReactNode; resetKey: unknown }) {
+export interface PaginatorHandle {
+  goToBlock(blockId: number): void;
+}
+
+export const Paginator = forwardRef<PaginatorHandle, { children: ReactNode; resetKey: unknown }>(
+  function Paginator({ children, resetKey }, ref) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
@@ -53,6 +61,27 @@ export function Paginator({ children, resetKey }: { children: ReactNode; resetKe
     return () => window.removeEventListener('keydown', onKey);
   }, [go]);
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      goToBlock(blockId: number) {
+        const flow = flowRef.current;
+        const vp = viewportRef.current;
+        if (!flow || !vp) return;
+        const el = flow.querySelector(`[data-block-id="${blockId}"]`) as HTMLElement | null;
+        if (!el) return;
+        const gap = parseFloat(getComputedStyle(flow).columnGap) || 0;
+        const s = vp.clientWidth + gap;
+        if (s <= 0) return; // no layout (jsdom) -> no-op
+        // x within untranslated content = element x in the translated flow plus
+        // the current translate (page*stride).
+        const x = el.getBoundingClientRect().left - flow.getBoundingClientRect().left + page * stride;
+        setPage(clampPage(Math.floor(x / s), pageCount));
+      },
+    }),
+    [page, stride, pageCount],
+  );
+
   return (
     <div className={styles.pager}>
       <button className={styles.zone} aria-label="Previous page" onClick={() => go(-1)}>
@@ -76,4 +105,4 @@ export function Paginator({ children, resetKey }: { children: ReactNode; resetKe
       </span>
     </div>
   );
-}
+});
