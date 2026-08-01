@@ -6,6 +6,8 @@
   width: 100%; min-height: 3rem; box-sizing: border-box; resize: vertical;
   background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.5rem; font: inherit;
 }
+.summaryActions { display: flex; align-items: center; gap: 0.5rem; }
+.saved { color: var(--accent); font-size: 0.85rem; }
 .agentSummary { color: var(--muted); font-size: 0.9rem; }
 .badge {
   background: var(--surface); border: 1px solid var(--border); border-radius: 999px;

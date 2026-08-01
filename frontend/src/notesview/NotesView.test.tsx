@@ -83,6 +83,14 @@ test('open in reader navigates with a focus param', async () => {
   expect(navigate).toHaveBeenCalledWith('/book/7?focus=10&ch=1');
 });
 
+test('shows a Saved confirmation after saving a summary', async () => {
+  renderNotes();
+  await screen.findByText('The quick');
+  await userEvent.type(screen.getByLabelText('Book summary'), 'the gist');
+  await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
+  expect(await screen.findByText('Saved ✓')).toBeInTheDocument();
+});
+
 test('an existing user summary prefills the editor after load', async () => {
   (api.listBookSummaries as ReturnType<typeof vi.fn>).mockResolvedValue([
     { id: 1, scope: 'book', scope_id: 7, body: 'saved gist', generated_by: 'user', created_at: '' },

@@ -68,7 +68,7 @@ export function NotesView() {
     ? passages.filter((p) => p.tags.some((t) => t.name === tagFilter))
     : passages;
 
-  async function saveSummary(scope: 'book' | 'chapter', scopeId: number, body: string) {
+  async function saveSummary(scope: 'book' | 'chapter', scopeId: number, body: string): Promise<boolean> {
     try {
       const mine = summaries.filter(
         (s) => s.scope === scope && s.scope_id === scopeId && s.generated_by === 'user',
@@ -76,8 +76,10 @@ export function NotesView() {
       await Promise.all(mine.map((s) => api.deleteSummary(s.id)));
       if (body.trim()) await api.createSummary(scope, scopeId, body.trim());
       await load();
+      return true;
     } catch (e) {
       setError(String(e));
+      return false;
     }
   }
 
@@ -174,11 +176,12 @@ function SummaryEditor({
 }: {
   label: string;
   summaries: Summary[];
-  onSave: (body: string) => void;
+  onSave: (body: string) => Promise<boolean>;
 }) {
   const mine = summaries.find((s) => s.generated_by === 'user');
   const agent = summaries.filter((s) => s.generated_by !== 'user');
   const [body, setBody] = useState(mine?.body ?? '');
+  const [saved, setSaved] = useState(false);
   // Summaries arrive after the first render, so the initial useState value is
   // always '' — sync the textarea when the saved summary loads/changes.
   useEffect(() => {
@@ -191,11 +194,26 @@ function SummaryEditor({
         aria-label={label}
         className={styles.summaryText}
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={(e) => {
+          setBody(e.target.value);
+          setSaved(false);
+        }}
       />
-      <button className={styles.open} onClick={() => onSave(body)}>
-        Save
-      </button>
+      <div className={styles.summaryActions}>
+        <button
+          className={styles.open}
+          onClick={async () => {
+            if (await onSave(body)) setSaved(true);
+          }}
+        >
+          Save
+        </button>
+        {saved && (
+          <span className={styles.saved} role="status">
+            Saved ✓
+          </span>
+        )}
+      </div>
       {agent.map((s) => (
         <p key={s.id} className={styles.agentSummary}>
           <span className={styles.badge}>agent</span> {s.body}
