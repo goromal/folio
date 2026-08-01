@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { api, subscribeFocus, type Block, type Chapter, type Focus, type PassageDetail } from '../api/client';
+import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { api, subscribeFocus, type Block, type Chapter, type Focus, type Link, type PassageDetail } from '../api/client';
 import { BlockList } from './BlockList';
 import { TocDrawer } from './TocDrawer';
 import { Paginator, type PaginatorHandle } from './Paginator';
@@ -9,17 +9,22 @@ import { PassagePanel } from './PassagePanel';
 import { useSelectionAnchor } from './useSelectionAnchor';
 import { paintHighlights } from './highlights';
 import { anchorToRange, type PassageAnchor } from './anchors';
+import { passageText } from './passageText';
 import type { HighlightColor } from './highlights';
 import styles from './ReaderShell.module.css';
 
 export function ReaderShell() {
   const { bookId } = useParams();
   const id = Number(bookId);
+  const [searchParams] = useSearchParams();
+  const focusBlockParam = searchParams.get('focus');
+  const focusChapterParam = searchParams.get('ch');
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [activeChapter, setActiveChapter] = useState<number | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [passages, setPassages] = useState<PassageDetail[]>([]);
   const [openPassage, setOpenPassage] = useState<PassageDetail | null>(null);
+  const [openLinks, setOpenLinks] = useState<Link[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tocOpen, setTocOpen] = useState(
     () => typeof window === 'undefined' || window.innerWidth >= 800,
@@ -46,6 +51,16 @@ export function ReaderShell() {
     });
     return off;
   }, [id, navigate]);
+
+  // Deep link: /book/:id?focus=<block>&ch=<chapter> jumps to a passage.
+  useEffect(() => {
+    if (!focusBlockParam) return;
+    setPendingFocus({
+      version: 0, book_id: id,
+      chapter_id: focusChapterParam ? Number(focusChapterParam) : null,
+      block_id: Number(focusBlockParam),
+    });
+  }, [id, focusBlockParam, focusChapterParam]);
 
   // Once the pending focus's chapter blocks are on screen, turn to the block.
   useEffect(() => {
@@ -83,13 +98,13 @@ export function ReaderShell() {
         const toc = await api.getToc(id);
         if (cancelled) return;
         setChapters(toc);
-        setActiveChapter(toc[0]?.id ?? null);
+        setActiveChapter(focusChapterParam ? Number(focusChapterParam) : (toc[0]?.id ?? null));
       } catch (e) {
         if (!cancelled) setError(String(e));
       }
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, focusChapterParam]);
 
   // Load chapter blocks.
   useEffect(() => {
@@ -128,12 +143,18 @@ export function ReaderShell() {
     } catch (e) { setError(String(e)); }
   }
 
+  async function openPassageById(pid: number) {
+    const [detail, links] = await Promise.all([api.getPassage(pid), api.getLinks(pid)]);
+    setOpenLinks(links);
+    setOpenPassage(detail);
+  }
+
   async function quickCreateAndOpen(anchor: PassageAnchor) {
     const pid = await createPassageFrom(anchor);
     await api.addHighlight(pid, 'yellow');
     await refreshPassages();
     window.getSelection()?.removeAllRanges();
-    setOpenPassage(await api.getPassage(pid));
+    await openPassageById(pid);
   }
 
   // Open the panel for the passage under a click on a painted highlight.
@@ -146,11 +167,17 @@ export function ReaderShell() {
     for (const p of passages) {
       const r = anchorToRange(flowRef.current, p);
       if (r && r.isPointInRange(cr.startContainer, cr.startOffset)) {
-        void api.getPassage(p.id).then(setOpenPassage);
+        void openPassageById(p.id);
         return;
       }
     }
   }
+
+  const linkTargets = openPassage
+    ? passages
+        .filter((p) => p.id !== openPassage.id)
+        .map((p) => ({ id: p.id, preview: passageText(blocks, p).slice(0, 80) || `passage ${p.id}` }))
+    : [];
 
   return (
     <div className={styles.reader} data-toc={tocOpen ? 'open' : 'closed'}>
@@ -170,6 +197,9 @@ export function ReaderShell() {
           >
             ☰
           </button>
+          <RouterLink to={`/book/${id}/notes`} className={styles.notesLink}>
+            Notes
+          </RouterLink>
         </div>
         {error && <p role="alert">{error}</p>}
         <div ref={flowRef} onClick={onFlowClick} style={{ height: '70vh' }}>
@@ -191,10 +221,16 @@ export function ReaderShell() {
       {openPassage && (
         <PassagePanel
           passage={openPassage}
-          links={[]}
-          linkTargets={[]}
-          onCreateLink={() => {}}
-          onRemoveLink={() => {}}
+          links={openLinks}
+          linkTargets={linkTargets}
+          onCreateLink={async (toId) => {
+            await api.createLink(openPassage.id, toId);
+            setOpenLinks(await api.getLinks(openPassage.id));
+          }}
+          onRemoveLink={async (linkId) => {
+            await api.deleteLink(linkId);
+            setOpenLinks(await api.getLinks(openPassage.id));
+          }}
           onAddNote={async (body) => {
             await api.addNote(openPassage.id, body);
             const p = await api.getPassage(openPassage.id);

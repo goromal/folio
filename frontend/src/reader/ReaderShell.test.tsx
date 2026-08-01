@@ -15,6 +15,9 @@ vi.mock('../api/client', () => ({
   api: {
     getToc: vi.fn(), getBlocks: vi.fn(), listPassages: vi.fn(),
     createPassage: vi.fn(), addHighlight: vi.fn(), getPassage: vi.fn(),
+    getLinks: vi.fn(() => Promise.resolve([])), createLink: vi.fn(), deleteLink: vi.fn(),
+    addNote: vi.fn(), updateNote: vi.fn(), tagPassage: vi.fn(), untagPassage: vi.fn(),
+    deletePassage: vi.fn(),
   },
   subscribeFocus: vi.fn(() => () => {}),
 }));
@@ -87,4 +90,18 @@ test('the table of contents can be collapsed and reopened', async () => {
   expect(screen.queryByRole('button', { name: 'Chapter One' })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Show contents' }));
   expect(await screen.findByRole('button', { name: 'Chapter One' })).toBeInTheDocument();
+});
+
+test('a ?focus deep link loads the target chapter', async () => {
+  const { container } = render(
+    <MemoryRouter initialEntries={['/book/7?focus=20&ch=2']}>
+      <Routes>
+        <Route path="/book/:bookId" element={<ReaderShell />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(api.getBlocks).toHaveBeenCalledWith(7, 2));
+  await waitFor(() =>
+    expect(container.querySelector('[data-block-id="20"]')).toBeInTheDocument(),
+  );
 });

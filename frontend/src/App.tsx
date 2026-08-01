@@ -3,6 +3,7 @@ import { ThemeProvider } from './theme/ThemeProvider';
 import { ThemeControls } from './theme/ThemeControls';
 import { LibraryScreen } from './library/LibraryScreen';
 import { ReaderShell } from './reader/ReaderShell';
+import { NotesView } from './notesview/NotesView';
 import './theme/tokens.css';
 
 export function App() {
@@ -26,6 +27,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<LibraryScreen />} />
           <Route path="/book/:bookId" element={<ReaderShell />} />
+          <Route path="/book/:bookId/notes" element={<NotesView />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HashRouter>
