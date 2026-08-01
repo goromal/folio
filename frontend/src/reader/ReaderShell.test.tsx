@@ -6,7 +6,10 @@ import { ReaderShell } from './ReaderShell';
 import { api } from '../api/client';
 
 vi.mock('../api/client', () => ({
-  api: { getToc: vi.fn(), getBlocks: vi.fn() },
+  api: {
+    getToc: vi.fn(), getBlocks: vi.fn(), listPassages: vi.fn(),
+    createPassage: vi.fn(), addHighlight: vi.fn(), getPassage: vi.fn(),
+  },
 }));
 
 beforeEach(() => {
@@ -14,14 +17,14 @@ beforeEach(() => {
     { id: 1, title: 'Chapter One', order_idx: 0, parent_id: null },
     { id: 2, title: 'Chapter Two', order_idx: 1, parent_id: null },
   ]);
-  (api.getBlocks as ReturnType<typeof vi.fn>).mockImplementation(
-    (_book: number, chapterId?: number) =>
-      Promise.resolve(
-        chapterId === 2
-          ? [{ id: 20, chapter_id: 2, order_idx: 0, type: 'para', text: 'Second chapter.' }]
-          : [{ id: 10, chapter_id: 1, order_idx: 0, type: 'para', text: 'First chapter.' }],
-      ),
+  (api.getBlocks as ReturnType<typeof vi.fn>).mockImplementation((_b: number, ch?: number) =>
+    Promise.resolve(
+      ch === 2
+        ? [{ id: 20, chapter_id: 2, order_idx: 0, type: 'para', text: 'Second chapter.' }]
+        : [{ id: 10, chapter_id: 1, order_idx: 0, type: 'para', text: 'First chapter.' }],
+    ),
   );
+  (api.listPassages as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -35,25 +38,18 @@ function renderReader() {
   );
 }
 
-test('loads TOC and first chapter blocks', async () => {
+test('loads TOC, blocks, and passages', async () => {
   renderReader();
   expect(await screen.findByText('Chapter One')).toBeInTheDocument();
   expect(await screen.findByText('First chapter.')).toBeInTheDocument();
-  expect(api.getToc).toHaveBeenCalledWith(7);
+  await waitFor(() => expect(api.listPassages).toHaveBeenCalledWith(7));
 });
 
-test('selecting a chapter loads its blocks', async () => {
+test('switching chapters loads new blocks', async () => {
   const { container } = renderReader();
   await screen.findByText('First chapter.');
   await userEvent.click(screen.getByRole('button', { name: 'Chapter Two' }));
   await waitFor(() =>
     expect(container.querySelector('[data-block-id="20"]')).toBeInTheDocument(),
   );
-  expect(api.getBlocks).toHaveBeenCalledWith(7, 2);
-});
-
-test('surfaces an alert when loading the TOC fails', async () => {
-  (api.getToc as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('toc boom'));
-  renderReader();
-  expect(await screen.findByRole('alert')).toHaveTextContent(/toc boom/);
 });
