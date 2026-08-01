@@ -11,7 +11,7 @@ from folio_backend.models import (
     PassageIn, PassageOut, HighlightIn, NoteIn, NoteUpdate, TagIn,
     LinkIn, SummaryIn, FocusIn,
 )
-from folio_backend.view import ViewState, focus_event_stream
+from folio_backend.view import ViewState, focus_event_stream, ChangeBroadcastMiddleware
 
 
 def create_app(db_path, static_dir=None):
@@ -19,6 +19,7 @@ def create_app(db_path, static_dir=None):
     app = FastAPI(title="folio-backend")
     app.state.db_path = db_path
     app.state.view = ViewState()
+    app.add_middleware(ChangeBroadcastMiddleware, view=app.state.view)
 
     def db():
         conn = connect(db_path)

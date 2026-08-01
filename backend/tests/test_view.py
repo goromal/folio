@@ -6,7 +6,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 from folio_backend.app import create_app
-from folio_backend.view import ViewState, focus_event_stream
+from folio_backend.view import ViewState, focus_event_stream, ChangeBroadcastMiddleware
 from tests.helpers import make_fixture_epub
 
 
@@ -21,6 +21,22 @@ class ViewStateTest(unittest.TestCase):
             self.assertEqual(q.get_nowait(), f)
             f2 = await vs.publish(1, 2, 4)
             self.assertEqual(f2["version"], 2)
+        asyncio.run(run())
+
+    def test_publish_change_fanout(self):
+        async def run():
+            vs = ViewState()
+            q = vs.subscribe()
+            await vs.publish_change()
+            self.assertEqual(q.get_nowait(), {"type": "changed"})
+        asyncio.run(run())
+
+    def test_focus_event_is_typed(self):
+        async def run():
+            vs = ViewState()
+            q = vs.subscribe()
+            await vs.publish(1, 2, 3)
+            self.assertEqual(q.get_nowait()["type"], "focus")
         asyncio.run(run())
 
 
@@ -69,6 +85,41 @@ class FocusStreamTest(unittest.TestCase):
             finally:
                 await gen.aclose()
         asyncio.run(run())
+
+
+class ChangeMiddlewareTest(unittest.TestCase):
+    def _run(self, method, path, status):
+        async def run():
+            vs = ViewState()
+            q = vs.subscribe()
+
+            async def app(scope, receive, send):
+                await send({"type": "http.response.start", "status": status, "headers": []})
+                await send({"type": "http.response.body", "body": b""})
+
+            async def receive():
+                return {"type": "http.request"}
+
+            async def send(_m):
+                pass
+
+            mw = ChangeBroadcastMiddleware(app, vs)
+            await mw({"type": "http", "method": method, "path": path}, receive, send)
+            return q
+        return asyncio.run(run())
+
+    def test_broadcasts_on_successful_mutation(self):
+        q = self._run("POST", "/passages", 201)
+        self.assertEqual(q.get_nowait(), {"type": "changed"})
+
+    def test_no_broadcast_on_get(self):
+        self.assertTrue(self._run("GET", "/books", 200).empty())
+
+    def test_no_broadcast_on_view_path(self):
+        self.assertTrue(self._run("POST", "/view/focus", 200).empty())
+
+    def test_no_broadcast_on_error(self):
+        self.assertTrue(self._run("POST", "/passages", 400).empty())
 
 
 if __name__ == "__main__":

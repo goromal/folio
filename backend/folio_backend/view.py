@@ -15,17 +15,24 @@ class ViewState:
     def focus(self):
         return self._focus
 
+    def _fanout(self, event):
+        for q in list(self._subscribers):
+            q.put_nowait(event)
+
     async def publish(self, book_id, chapter_id, block_id):
         self._version += 1
         self._focus = {
+            "type": "focus",
             "version": self._version,
             "book_id": book_id,
             "chapter_id": chapter_id,
             "block_id": block_id,
         }
-        for q in list(self._subscribers):
-            q.put_nowait(self._focus)
+        self._fanout(self._focus)
         return self._focus
+
+    async def publish_change(self):
+        self._fanout({"type": "changed"})
 
     def subscribe(self):
         q = asyncio.Queue()
@@ -55,3 +62,31 @@ async def focus_event_stream(view):
                 yield ": keep-alive\n\n"
     finally:
         view.unsubscribe(q)
+
+
+class ChangeBroadcastMiddleware:
+    """Raw ASGI middleware: broadcast a 'changed' event after any successful data
+    mutation so open readers auto-refresh. Raw ASGI (not Starlette's
+    BaseHTTPMiddleware) because the latter buffers the response body and would
+    break the SSE stream."""
+
+    def __init__(self, app, view):
+        self.app = app
+        self.view = view
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        status = {"code": 0}
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                status["code"] = message["status"]
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+        if (scope["method"] in ("POST", "PUT", "DELETE")
+                and 200 <= status["code"] < 300
+                and not scope["path"].startswith("/view/")):
+            await self.view.publish_change()
