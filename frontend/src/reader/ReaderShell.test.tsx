@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { ReaderShell } from './ReaderShell';
-import { api, subscribeFocus } from '../api/client';
+import { api, subscribeEvents } from '../api/client';
 
 const navigate = vi.fn();
 vi.mock('react-router-dom', async (orig) => ({
@@ -19,7 +19,7 @@ vi.mock('../api/client', () => ({
     addNote: vi.fn(), updateNote: vi.fn(), tagPassage: vi.fn(), untagPassage: vi.fn(),
     deletePassage: vi.fn(),
   },
-  subscribeFocus: vi.fn(() => () => {}),
+  subscribeEvents: vi.fn(() => () => {}),
 }));
 
 beforeEach(() => {
@@ -68,8 +68,8 @@ test('switching chapters loads new blocks', async () => {
 test('a focus for the current book switches to its chapter', async () => {
   const { container } = renderReader();
   await screen.findByText('First chapter.');
-  const cb = (subscribeFocus as ReturnType<typeof vi.fn>).mock.calls[0][0] as (f: unknown) => void;
-  act(() => cb({ version: 1, book_id: 7, chapter_id: 2, block_id: 20 }));
+  const cb = (subscribeEvents as ReturnType<typeof vi.fn>).mock.calls[0][0] as (f: unknown) => void;
+  act(() => cb({ type: 'focus', version: 1, book_id: 7, chapter_id: 2, block_id: 20 }));
   await waitFor(() =>
     expect(container.querySelector('[data-block-id="20"]')).toBeInTheDocument(),
   );
@@ -78,8 +78,8 @@ test('a focus for the current book switches to its chapter', async () => {
 test('a focus for a different book navigates there', async () => {
   renderReader();
   await screen.findByText('First chapter.');
-  const cb = (subscribeFocus as ReturnType<typeof vi.fn>).mock.calls[0][0] as (f: unknown) => void;
-  act(() => cb({ version: 2, book_id: 99, chapter_id: 1, block_id: 5 }));
+  const cb = (subscribeEvents as ReturnType<typeof vi.fn>).mock.calls[0][0] as (f: unknown) => void;
+  act(() => cb({ type: 'focus', version: 2, book_id: 99, chapter_id: 1, block_id: 5 }));
   expect(navigate).toHaveBeenCalledWith('/book/99');
 });
 
@@ -103,5 +103,16 @@ test('a ?focus deep link loads the target chapter', async () => {
   await waitFor(() => expect(api.getBlocks).toHaveBeenCalledWith(7, 2));
   await waitFor(() =>
     expect(container.querySelector('[data-block-id="20"]')).toBeInTheDocument(),
+  );
+});
+
+test('a changed event refetches passages (live sync)', async () => {
+  renderReader();
+  await screen.findByText('First chapter.');
+  const cb = (subscribeEvents as ReturnType<typeof vi.fn>).mock.calls[0][0] as (e: unknown) => void;
+  const before = (api.listPassages as ReturnType<typeof vi.fn>).mock.calls.length;
+  act(() => cb({ type: 'changed' }));
+  await waitFor(() =>
+    expect((api.listPassages as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(before),
   );
 });

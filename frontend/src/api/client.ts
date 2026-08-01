@@ -103,12 +103,14 @@ export interface Focus {
   block_id: number;
 }
 
-/** Subscribe to agent view-follow focus events (SSE). Returns an unsubscribe. */
-export function subscribeFocus(onFocus: (f: Focus) => void): () => void {
+export type FolioEvent = ({ type: 'focus' } & Focus) | { type: 'changed' };
+
+/** Subscribe to the folio SSE event stream. Returns an unsubscribe. */
+export function subscribeEvents(onEvent: (e: FolioEvent) => void): () => void {
   const es = new EventSource(`${BASE}/view/stream`);
-  es.onmessage = (e) => {
+  es.onmessage = (ev) => {
     try {
-      onFocus(JSON.parse(e.data) as Focus);
+      onEvent(JSON.parse(ev.data) as FolioEvent);
     } catch {
       /* ignore keep-alive / non-JSON frames */
     }

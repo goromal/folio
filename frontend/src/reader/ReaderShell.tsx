@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, subscribeFocus, type Block, type Chapter, type Focus, type Link, type PassageDetail } from '../api/client';
+import { api, subscribeEvents, type Block, type Chapter, type Focus, type Link, type PassageDetail } from '../api/client';
 import { BlockList } from './BlockList';
 import { TocDrawer } from './TocDrawer';
 import { Paginator, type PaginatorHandle } from './Paginator';
@@ -39,18 +39,29 @@ export function ReaderShell() {
   const [pendingFocus, setPendingFocus] = useState<Focus | null>(null);
   const [flashBlock, setFlashBlock] = useState<number | null>(null);
 
-  // Subscribe to agent view-follow. A focus for another book navigates there
-  // (the new mount re-subscribes and receives the current focus on connect).
+  // Live events: focus drives view-follow; 'changed' re-fetches passages so agent
+  // (MCP) edits show up without a manual refresh (debounced to coalesce bursts).
   useEffect(() => {
-    const off = subscribeFocus((f) => {
-      if (f.book_id !== id) {
-        navigate(`/book/${f.book_id}`);
-        return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const off = subscribeEvents((e) => {
+      if (e.type === 'focus') {
+        if (e.book_id !== id) {
+          navigate(`/book/${e.book_id}`);
+          return;
+        }
+        if (e.chapter_id != null) setActiveChapter(e.chapter_id);
+        setPendingFocus(e);
+      } else if (e.type === 'changed') {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          void api.listPassages(id).then(setPassages).catch((err) => setError(String(err)));
+        }, 300);
       }
-      if (f.chapter_id != null) setActiveChapter(f.chapter_id);
-      setPendingFocus(f);
     });
-    return off;
+    return () => {
+      clearTimeout(t);
+      off();
+    };
   }, [id, navigate]);
 
   // Deep link: /book/:id?focus=<block>&ch=<chapter> jumps to a passage.

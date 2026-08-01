@@ -152,18 +152,20 @@ test('deleteSummary DELETEs', async () => {
   expect(f).toHaveBeenCalledWith('/summaries/9', { method: 'DELETE' });
 });
 
-test('subscribeFocus delivers parsed focus and unsubscribes', async () => {
-  const { subscribeFocus } = await import('./client');
+test('subscribeEvents delivers parsed events and unsubscribes', async () => {
+  const { subscribeEvents } = await import('./client');
   (globalThis as unknown as { EventSource: unknown }).EventSource = FakeEventSource;
   FakeEventSource.instances = [];
-  const seen: unknown[] = [];
-  const off = subscribeFocus((f) => seen.push(f));
+  const seen: Array<{ type: string; block_id?: number }> = [];
+  const off = subscribeEvents((e) => seen.push(e as { type: string; block_id?: number }));
   const es = FakeEventSource.instances[0];
   expect(es.url).toContain('/view/stream');
-  es.onmessage!({ data: JSON.stringify({ version: 1, book_id: 7, chapter_id: 2, block_id: 10 }) });
-  expect((seen[0] as { block_id: number }).block_id).toBe(10);
+  es.onmessage!({ data: JSON.stringify({ type: 'focus', version: 1, book_id: 7, chapter_id: 2, block_id: 10 }) });
+  es.onmessage!({ data: JSON.stringify({ type: 'changed' }) });
   es.onmessage!({ data: ': keep-alive' });
-  expect(seen).toHaveLength(1);
+  expect(seen).toHaveLength(2);
+  expect(seen[0].block_id).toBe(10);
+  expect(seen[1].type).toBe('changed');
   off();
   expect(es.closed).toBe(true);
   delete (globalThis as unknown as { EventSource?: unknown }).EventSource;
