@@ -76,3 +76,7 @@ class SummaryIn(BaseModel):
     scope_id: int
     body: str
     generated_by: str = "user"
+
+
+class FocusIn(BaseModel):
+    block_id: int

@@ -2,20 +2,23 @@ import os
 import tempfile
 
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
+from fastapi.responses import StreamingResponse
 
 from folio_backend import ingest, search as search_mod, store
 from folio_backend.db import connect, init_db
 from folio_backend.models import (
     BookOut, ChapterOut, BlockOut, SearchHit,
     PassageIn, PassageOut, HighlightIn, NoteIn, NoteUpdate, TagIn,
-    LinkIn, SummaryIn,
+    LinkIn, SummaryIn, FocusIn,
 )
+from folio_backend.view import ViewState, focus_event_stream
 
 
 def create_app(db_path, static_dir=None):
     init_db(connect(db_path))
     app = FastAPI(title="folio-backend")
     app.state.db_path = db_path
+    app.state.view = ViewState()
 
     def db():
         conn = connect(db_path)
@@ -229,5 +232,19 @@ def create_app(db_path, static_dir=None):
         from fastapi.staticfiles import StaticFiles
         app.mount("/folio", StaticFiles(directory=resolved_static, html=True),
                   name="folio")
+
+    # ---- agent view-follow ----
+    @app.post("/view/focus")
+    async def set_view_focus(body: FocusIn, conn=Depends(db)):
+        row = conn.execute(
+            "SELECT book_id, chapter_id FROM blocks WHERE id = ?", (body.block_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "block not found")
+        return await app.state.view.publish(row["book_id"], row["chapter_id"], body.block_id)
+
+    @app.get("/view/stream")
+    async def view_stream():
+        return StreamingResponse(
+            focus_event_stream(app.state.view), media_type="text/event-stream")
 
     return app
