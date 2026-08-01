@@ -24,6 +24,8 @@ export function TocDrawer({
                 cursor: 'pointer',
                 padding: '0.25rem 0',
                 textAlign: 'left',
+                width: '100%',
+                overflowWrap: 'anywhere',
               }}
             >
               {c.title}

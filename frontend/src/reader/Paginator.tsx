@@ -7,12 +7,20 @@ export function Paginator({ children, resetKey }: { children: ReactNode; resetKe
   const flowRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   const [pageCount, setPageCount] = useState(1);
+  const [stride, setStride] = useState(0);
 
   const measure = useCallback(() => {
     const vp = viewportRef.current;
     const flow = flowRef.current;
     if (!vp || !flow) return;
-    const count = computePageCount(flow.scrollWidth, vp.clientWidth);
+    // One page advances by the viewport width PLUS the column gap: the k-th
+    // multicolumn column starts at k*(colWidth+gap), so a page (1 or 2 columns)
+    // advances by clientWidth+gap. Ignoring the gap makes each page drift by one
+    // gap and accumulate (bits of three columns after several turns).
+    const gap = parseFloat(getComputedStyle(flow).columnGap) || 0;
+    const s = vp.clientWidth + gap;
+    const count = computePageCount(flow.scrollWidth + gap, s);
+    setStride(s);
     setPageCount(count);
     setPage((p) => clampPage(p, count));
   }, []);
@@ -45,8 +53,6 @@ export function Paginator({ children, resetKey }: { children: ReactNode; resetKe
     return () => window.removeEventListener('keydown', onKey);
   }, [go]);
 
-  const pageWidth = viewportRef.current?.clientWidth ?? 0;
-
   return (
     <div className={styles.pager}>
       <button className={styles.zone} aria-label="Previous page" onClick={() => go(-1)}>
@@ -57,7 +63,7 @@ export function Paginator({ children, resetKey }: { children: ReactNode; resetKe
           className={styles.flow}
           data-folio-flow=""
           ref={flowRef}
-          style={{ transform: `translateX(${translateXFor(page, pageWidth)}px)` }}
+          style={{ transform: `translateX(${translateXFor(page, stride)}px)` }}
         >
           {children}
         </div>
