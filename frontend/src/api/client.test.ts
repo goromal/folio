@@ -97,3 +97,34 @@ test('deletePassage DELETEs', async () => {
   await api.deletePassage(5);
   expect(f).toHaveBeenCalledWith('/passages/5', { method: 'DELETE' });
 });
+
+class FakeEventSource {
+  static instances: FakeEventSource[] = [];
+  url: string;
+  onmessage: ((e: { data: string }) => void) | null = null;
+  closed = false;
+  constructor(url: string) {
+    this.url = url;
+    FakeEventSource.instances.push(this);
+  }
+  close() {
+    this.closed = true;
+  }
+}
+
+test('subscribeFocus delivers parsed focus and unsubscribes', async () => {
+  const { subscribeFocus } = await import('./client');
+  (globalThis as unknown as { EventSource: unknown }).EventSource = FakeEventSource;
+  FakeEventSource.instances = [];
+  const seen: unknown[] = [];
+  const off = subscribeFocus((f) => seen.push(f));
+  const es = FakeEventSource.instances[0];
+  expect(es.url).toContain('/view/stream');
+  es.onmessage!({ data: JSON.stringify({ version: 1, book_id: 7, chapter_id: 2, block_id: 10 }) });
+  expect((seen[0] as { block_id: number }).block_id).toBe(10);
+  es.onmessage!({ data: ': keep-alive' });
+  expect(seen).toHaveLength(1);
+  off();
+  expect(es.closed).toBe(true);
+  delete (globalThis as unknown as { EventSource?: unknown }).EventSource;
+});

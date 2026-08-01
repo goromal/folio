@@ -68,3 +68,23 @@ export const api = {
   untagPassage: (passageId: number, tagId: number) =>
     req<void>(`/passages/${passageId}/tags/${tagId}`, { method: 'DELETE' }),
 };
+
+export interface Focus {
+  version: number;
+  book_id: number;
+  chapter_id: number | null;
+  block_id: number;
+}
+
+/** Subscribe to agent view-follow focus events (SSE). Returns an unsubscribe. */
+export function subscribeFocus(onFocus: (f: Focus) => void): () => void {
+  const es = new EventSource(`${BASE}/view/stream`);
+  es.onmessage = (e) => {
+    try {
+      onFocus(JSON.parse(e.data) as Focus);
+    } catch {
+      /* ignore keep-alive / non-JSON frames */
+    }
+  };
+  return () => es.close();
+}
