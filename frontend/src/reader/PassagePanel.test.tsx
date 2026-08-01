@@ -13,7 +13,7 @@ const passage: PassageDetail = {
 
 function setup() {
   const handlers = {
-    onAddNote: vi.fn(), onAddTag: vi.fn(), onRemoveTag: vi.fn(),
+    onAddNote: vi.fn(), onEditNote: vi.fn(), onAddTag: vi.fn(), onRemoveTag: vi.fn(),
     onDelete: vi.fn(), onClose: vi.fn(),
   };
   render(<PassagePanel passage={passage} {...handlers} />);
@@ -31,6 +31,24 @@ test('adds a note', async () => {
   await userEvent.type(screen.getByLabelText('New note'), 'fresh');
   await userEvent.click(screen.getByRole('button', { name: 'Save note' }));
   expect(h.onAddNote).toHaveBeenCalledWith('fresh');
+});
+
+test('edits an existing note', async () => {
+  const h = setup();
+  await userEvent.click(screen.getByRole('button', { name: 'Edit note' }));
+  const box = screen.getByLabelText('Edit note');
+  await userEvent.clear(box);
+  await userEvent.type(box, 'updated body');
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(h.onEditNote).toHaveBeenCalledWith(9, 'updated body');
+});
+
+test('cancelling an edit does not call onEditNote', async () => {
+  const h = setup();
+  await userEvent.click(screen.getByRole('button', { name: 'Edit note' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(h.onEditNote).not.toHaveBeenCalled();
+  expect(screen.getByText('existing note')).toBeInTheDocument();
 });
 
 test('adds and removes tags, and deletes the passage', async () => {

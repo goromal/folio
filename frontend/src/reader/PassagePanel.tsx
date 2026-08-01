@@ -5,6 +5,7 @@ import styles from './PassagePanel.module.css';
 export function PassagePanel({
   passage,
   onAddNote,
+  onEditNote,
   onAddTag,
   onRemoveTag,
   onDelete,
@@ -12,6 +13,7 @@ export function PassagePanel({
 }: {
   passage: PassageDetail;
   onAddNote: (body: string) => void;
+  onEditNote: (noteId: number, body: string) => void;
   onAddTag: (name: string) => void;
   onRemoveTag: (tagId: number) => void;
   onDelete: () => void;
@@ -19,6 +21,8 @@ export function PassagePanel({
 }) {
   const [note, setNote] = useState('');
   const [tag, setTag] = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingBody, setEditingBody] = useState('');
 
   return (
     <aside aria-label="Passage" className={styles.panel}>
@@ -33,11 +37,46 @@ export function PassagePanel({
         <h3 className={styles.heading}>Notes</h3>
         {passage.notes.length === 0 && <p className={styles.empty}>No notes yet.</p>}
         <ul className={styles.notes}>
-          {passage.notes.map((n) => (
-            <li key={n.id} className={styles.note}>
-              {n.body}
-            </li>
-          ))}
+          {passage.notes.map((n) =>
+            editingId === n.id ? (
+              <li key={n.id} className={styles.noteEditing}>
+                <textarea
+                  aria-label="Edit note"
+                  className={styles.textarea}
+                  value={editingBody}
+                  onChange={(e) => setEditingBody(e.target.value)}
+                />
+                <div className={styles.noteActions}>
+                  <button
+                    className={styles.primary}
+                    onClick={() => {
+                      if (editingBody.trim()) onEditNote(n.id, editingBody.trim());
+                      setEditingId(null);
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button className={styles.secondary} onClick={() => setEditingId(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </li>
+            ) : (
+              <li key={n.id} className={styles.note}>
+                <span className={styles.noteBody}>{n.body}</span>
+                <button
+                  aria-label="Edit note"
+                  className={styles.noteEdit}
+                  onClick={() => {
+                    setEditingId(n.id);
+                    setEditingBody(n.body);
+                  }}
+                >
+                  Edit
+                </button>
+              </li>
+            ),
+          )}
         </ul>
         <textarea
           aria-label="New note"

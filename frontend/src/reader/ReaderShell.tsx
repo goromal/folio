@@ -196,6 +196,10 @@ export function ReaderShell() {
             const p = await api.getPassage(openPassage.id);
             setOpenPassage(p); await refreshPassages();
           }}
+          onEditNote={async (noteId, body) => {
+            await api.updateNote(noteId, body);
+            setOpenPassage(await api.getPassage(openPassage.id)); await refreshPassages();
+          }}
           onAddTag={async (name) => {
             await api.tagPassage(openPassage.id, name);
             setOpenPassage(await api.getPassage(openPassage.id)); await refreshPassages();
