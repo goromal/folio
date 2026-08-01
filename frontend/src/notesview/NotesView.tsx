@@ -69,12 +69,16 @@ export function NotesView() {
     : passages;
 
   async function saveSummary(scope: 'book' | 'chapter', scopeId: number, body: string) {
-    const mine = summaries.filter(
-      (s) => s.scope === scope && s.scope_id === scopeId && s.generated_by === 'user',
-    );
-    await Promise.all(mine.map((s) => api.deleteSummary(s.id)));
-    if (body.trim()) await api.createSummary(scope, scopeId, body.trim());
-    await load();
+    try {
+      const mine = summaries.filter(
+        (s) => s.scope === scope && s.scope_id === scopeId && s.generated_by === 'user',
+      );
+      await Promise.all(mine.map((s) => api.deleteSummary(s.id)));
+      if (body.trim()) await api.createSummary(scope, scopeId, body.trim());
+      await load();
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   function openInReader(p: PassageDetail) {
@@ -175,6 +179,11 @@ function SummaryEditor({
   const mine = summaries.find((s) => s.generated_by === 'user');
   const agent = summaries.filter((s) => s.generated_by !== 'user');
   const [body, setBody] = useState(mine?.body ?? '');
+  // Summaries arrive after the first render, so the initial useState value is
+  // always '' — sync the textarea when the saved summary loads/changes.
+  useEffect(() => {
+    setBody(mine?.body ?? '');
+  }, [mine?.body]);
   return (
     <div className={styles.summary}>
       <h3 className={styles.summaryLabel}>{label}</h3>

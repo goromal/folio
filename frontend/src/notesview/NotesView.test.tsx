@@ -82,3 +82,13 @@ test('open in reader navigates with a focus param', async () => {
   await userEvent.click(screen.getAllByRole('button', { name: 'Open in reader' })[0]);
   expect(navigate).toHaveBeenCalledWith('/book/7?focus=10&ch=1');
 });
+
+test('an existing user summary prefills the editor after load', async () => {
+  (api.listBookSummaries as ReturnType<typeof vi.fn>).mockResolvedValue([
+    { id: 1, scope: 'book', scope_id: 7, body: 'saved gist', generated_by: 'user', created_at: '' },
+  ]);
+  renderNotes();
+  await waitFor(() =>
+    expect((screen.getByLabelText('Book summary') as HTMLTextAreaElement).value).toBe('saved gist'),
+  );
+});
