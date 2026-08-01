@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { api, type Block, type Chapter, type PassageDetail } from '../api/client';
+import { useNavigate, useParams } from 'react-router-dom';
+import { api, subscribeFocus, type Block, type Chapter, type Focus, type PassageDetail } from '../api/client';
 import { BlockList } from './BlockList';
 import { TocDrawer } from './TocDrawer';
-import { Paginator } from './Paginator';
+import { Paginator, type PaginatorHandle } from './Paginator';
 import { SelectionToolbar } from './SelectionToolbar';
 import { PassagePanel } from './PassagePanel';
 import { useSelectionAnchor } from './useSelectionAnchor';
@@ -24,6 +24,44 @@ export function ReaderShell() {
 
   const flowRef = useRef<HTMLDivElement>(null);
   const selection = useSelectionAnchor(flowRef);
+
+  const navigate = useNavigate();
+  const paginatorRef = useRef<PaginatorHandle>(null);
+  const [pendingFocus, setPendingFocus] = useState<Focus | null>(null);
+  const [flashBlock, setFlashBlock] = useState<number | null>(null);
+
+  // Subscribe to agent view-follow. A focus for another book navigates there
+  // (the new mount re-subscribes and receives the current focus on connect).
+  useEffect(() => {
+    const off = subscribeFocus((f) => {
+      if (f.book_id !== id) {
+        navigate(`/book/${f.book_id}`);
+        return;
+      }
+      if (f.chapter_id != null) setActiveChapter(f.chapter_id);
+      setPendingFocus(f);
+    });
+    return off;
+  }, [id, navigate]);
+
+  // Once the pending focus's chapter blocks are on screen, turn to the block.
+  useEffect(() => {
+    if (!pendingFocus || blocks.length === 0) return;
+    const target = pendingFocus.block_id;
+    const raf = requestAnimationFrame(() => {
+      paginatorRef.current?.goToBlock(target);
+      setFlashBlock(target);
+    });
+    setPendingFocus(null);
+    return () => cancelAnimationFrame(raf);
+  }, [pendingFocus, blocks]);
+
+  // Clear the flash after a moment.
+  useEffect(() => {
+    if (flashBlock == null) return;
+    const t = setTimeout(() => setFlashBlock(null), 1200);
+    return () => clearTimeout(t);
+  }, [flashBlock]);
 
   const refreshPassages = useCallback(async () => {
     try {
@@ -119,8 +157,8 @@ export function ReaderShell() {
       <section className={styles.content}>
         {error && <p role="alert">{error}</p>}
         <div ref={flowRef} onClick={onFlowClick} style={{ height: '70vh' }}>
-          <Paginator resetKey={activeChapter}>
-            <BlockList blocks={blocks} />
+          <Paginator ref={paginatorRef} resetKey={activeChapter}>
+            <BlockList blocks={blocks} flashBlockId={flashBlock} />
           </Paginator>
         </div>
       </section>

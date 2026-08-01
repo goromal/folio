@@ -1,18 +1,26 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { ReaderShell } from './ReaderShell';
-import { api } from '../api/client';
+import { api, subscribeFocus } from '../api/client';
+
+const navigate = vi.fn();
+vi.mock('react-router-dom', async (orig) => ({
+  ...(await orig<typeof import('react-router-dom')>()),
+  useNavigate: () => navigate,
+}));
 
 vi.mock('../api/client', () => ({
   api: {
     getToc: vi.fn(), getBlocks: vi.fn(), listPassages: vi.fn(),
     createPassage: vi.fn(), addHighlight: vi.fn(), getPassage: vi.fn(),
   },
+  subscribeFocus: vi.fn(() => () => {}),
 }));
 
 beforeEach(() => {
+  navigate.mockClear();
   (api.getToc as ReturnType<typeof vi.fn>).mockResolvedValue([
     { id: 1, title: 'Chapter One', order_idx: 0, parent_id: null },
     { id: 2, title: 'Chapter Two', order_idx: 1, parent_id: null },
@@ -52,4 +60,22 @@ test('switching chapters loads new blocks', async () => {
   await waitFor(() =>
     expect(container.querySelector('[data-block-id="20"]')).toBeInTheDocument(),
   );
+});
+
+test('a focus for the current book switches to its chapter', async () => {
+  const { container } = renderReader();
+  await screen.findByText('First chapter.');
+  const cb = (subscribeFocus as ReturnType<typeof vi.fn>).mock.calls[0][0] as (f: unknown) => void;
+  act(() => cb({ version: 1, book_id: 7, chapter_id: 2, block_id: 20 }));
+  await waitFor(() =>
+    expect(container.querySelector('[data-block-id="20"]')).toBeInTheDocument(),
+  );
+});
+
+test('a focus for a different book navigates there', async () => {
+  renderReader();
+  await screen.findByText('First chapter.');
+  const cb = (subscribeFocus as ReturnType<typeof vi.fn>).mock.calls[0][0] as (f: unknown) => void;
+  act(() => cb({ version: 2, book_id: 99, chapter_id: 1, block_id: 5 }));
+  expect(navigate).toHaveBeenCalledWith('/book/99');
 });
