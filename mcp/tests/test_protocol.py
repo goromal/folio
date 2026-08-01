@@ -8,6 +8,7 @@ EXPECTED_TOOLS = {
     "folio_get_passage", "folio_create_passage", "folio_add_note",
     "folio_add_highlight", "folio_add_tag", "folio_link_passages",
     "folio_store_summary", "folio_get_summaries", "folio_export_prepare",
+    "folio_goto",
 }
 
 
