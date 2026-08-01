@@ -1,8 +1,8 @@
 .pager { display: grid; grid-template-columns: auto 1fr auto; align-items: stretch; gap: 0.25rem; height: 100%; }
 .viewport { overflow: hidden; height: 100%; }
 .flow {
+  /* column-count is set inline from the measured width (see Paginator.tsx). */
   height: 100%;
-  column-count: 2;
   column-gap: 2rem;
   column-fill: auto;
   font-size: var(--reader-fs);
@@ -15,4 +15,3 @@
 }
 .zone:hover { color: var(--fg); }
 .count { grid-column: 2; text-align: center; color: var(--muted); font-size: 0.8em; }
-@media (max-width: 640px) { .flow { column-count: 1; } }

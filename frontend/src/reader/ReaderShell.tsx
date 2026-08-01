@@ -21,6 +21,9 @@ export function ReaderShell() {
   const [passages, setPassages] = useState<PassageDetail[]>([]);
   const [openPassage, setOpenPassage] = useState<PassageDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tocOpen, setTocOpen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 800,
+  );
 
   const flowRef = useRef<HTMLDivElement>(null);
   const selection = useSelectionAnchor(flowRef);
@@ -150,11 +153,24 @@ export function ReaderShell() {
   }
 
   return (
-    <div className={styles.reader}>
-      <aside className={styles.toc}>
-        <TocDrawer chapters={chapters} activeId={activeChapter} onSelect={setActiveChapter} />
-      </aside>
+    <div className={styles.reader} data-toc={tocOpen ? 'open' : 'closed'}>
+      {tocOpen && (
+        <aside className={styles.toc}>
+          <TocDrawer chapters={chapters} activeId={activeChapter} onSelect={setActiveChapter} />
+        </aside>
+      )}
       <section className={styles.content}>
+        <div className={styles.contentBar}>
+          <button
+            type="button"
+            className={styles.tocToggle}
+            aria-label={tocOpen ? 'Hide contents' : 'Show contents'}
+            aria-expanded={tocOpen}
+            onClick={() => setTocOpen((o) => !o)}
+          >
+            ☰
+          </button>
+        </div>
         {error && <p role="alert">{error}</p>}
         <div ref={flowRef} onClick={onFlowClick} style={{ height: '70vh' }}>
           <Paginator ref={paginatorRef} resetKey={activeChapter}>

@@ -16,11 +16,16 @@ export const Paginator = forwardRef<PaginatorHandle, { children: ReactNode; rese
   const [page, setPage] = useState(0);
   const [pageCount, setPageCount] = useState(1);
   const [stride, setStride] = useState(0);
+  const [cols, setCols] = useState(2);
 
   const measure = useCallback(() => {
     const vp = viewportRef.current;
     const flow = flowRef.current;
     if (!vp || !flow) return;
+    // Column count from the MEASURED reading width, not a window media query, so
+    // it collapses to one column whenever the flow is narrow (e.g. the TOC is
+    // open, or a small screen).
+    setCols(vp.clientWidth >= 640 ? 2 : 1);
     // One page advances by the viewport width PLUS the column gap: the k-th
     // multicolumn column starts at k*(colWidth+gap), so a page (1 or 2 columns)
     // advances by clientWidth+gap. Ignoring the gap makes each page drift by one
@@ -38,6 +43,12 @@ export const Paginator = forwardRef<PaginatorHandle, { children: ReactNode; rese
     setPage(0);
     measure();
   }, [resetKey, measure]);
+
+  // Re-measure after a column-count change reflows the content (the ResizeObserver
+  // watches the viewport, which doesn't resize when only `cols` changes).
+  useLayoutEffect(() => {
+    measure();
+  }, [cols, measure]);
 
   useEffect(() => {
     const vp = viewportRef.current;
@@ -92,7 +103,7 @@ export const Paginator = forwardRef<PaginatorHandle, { children: ReactNode; rese
           className={styles.flow}
           data-folio-flow=""
           ref={flowRef}
-          style={{ transform: `translateX(${translateXFor(page, stride)}px)` }}
+          style={{ columnCount: cols, transform: `translateX(${translateXFor(page, stride)}px)` }}
         >
           {children}
         </div>

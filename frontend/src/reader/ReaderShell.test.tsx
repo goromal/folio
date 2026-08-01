@@ -79,3 +79,12 @@ test('a focus for a different book navigates there', async () => {
   act(() => cb({ version: 2, book_id: 99, chapter_id: 1, block_id: 5 }));
   expect(navigate).toHaveBeenCalledWith('/book/99');
 });
+
+test('the table of contents can be collapsed and reopened', async () => {
+  renderReader();
+  expect(await screen.findByRole('button', { name: 'Chapter One' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Hide contents' }));
+  expect(screen.queryByRole('button', { name: 'Chapter One' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Show contents' }));
+  expect(await screen.findByRole('button', { name: 'Chapter One' })).toBeInTheDocument();
+});
