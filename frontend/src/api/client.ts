@@ -15,6 +15,22 @@ export interface PassageDetail extends Passage {
   tags: Tag[];
 }
 
+export interface Link {
+  id: number;
+  from_passage: number;
+  to_passage: number;
+  note: string | null;
+}
+
+export interface Summary {
+  id: number;
+  scope: string;
+  scope_id: number;
+  body: string;
+  generated_by: string;
+  created_at: string;
+}
+
 export interface PassageAnchorInput {
   book_id: number;
   start_block: number;
@@ -67,6 +83,17 @@ export const api = {
   deleteNote: (id: number) => req<void>(`/notes/${id}`, { method: 'DELETE' }),
   untagPassage: (passageId: number, tagId: number) =>
     req<void>(`/passages/${passageId}/tags/${tagId}`, { method: 'DELETE' }),
+  getLinks: (passageId: number) => req<Link[]>(`/passages/${passageId}/links`),
+  createLink: (fromPassage: number, toPassage: number, note?: string) =>
+    req<{ id: number }>(
+      `/passages/${fromPassage}/links`,
+      jsonInit('POST', { to_passage: toPassage, note: note ?? null }),
+    ),
+  deleteLink: (id: number) => req<void>(`/links/${id}`, { method: 'DELETE' }),
+  listBookSummaries: (bookId: number) => req<Summary[]>(`/books/${bookId}/summaries`),
+  createSummary: (scope: 'book' | 'chapter', scopeId: number, body: string) =>
+    req<{ id: number }>('/summaries', jsonInit('POST', { scope, scope_id: scopeId, body })),
+  deleteSummary: (id: number) => req<void>(`/summaries/${id}`, { method: 'DELETE' }),
 };
 
 export interface Focus {

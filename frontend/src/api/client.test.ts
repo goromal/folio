@@ -112,6 +112,46 @@ class FakeEventSource {
   }
 }
 
+test('getLinks GETs a passage links', async () => {
+  const f = mockFetch(200, []);
+  await api.getLinks(5);
+  expect(f).toHaveBeenCalledWith('/passages/5/links', undefined);
+});
+
+test('createLink POSTs to_passage + note', async () => {
+  const f = mockFetch(201, { id: 1 });
+  await api.createLink(5, 8, 'see also');
+  const [url, init] = f.mock.calls[0];
+  expect(url).toBe('/passages/5/links');
+  expect(JSON.parse((init as RequestInit).body as string)).toEqual({ to_passage: 8, note: 'see also' });
+});
+
+test('deleteLink DELETEs', async () => {
+  const f = mockFetch(204, undefined);
+  await api.deleteLink(3);
+  expect(f).toHaveBeenCalledWith('/links/3', { method: 'DELETE' });
+});
+
+test('listBookSummaries GETs book summaries', async () => {
+  const f = mockFetch(200, []);
+  await api.listBookSummaries(7);
+  expect(f).toHaveBeenCalledWith('/books/7/summaries', undefined);
+});
+
+test('createSummary POSTs scope + scope_id + body', async () => {
+  const f = mockFetch(201, { id: 1 });
+  await api.createSummary('book', 7, 'the gist');
+  const [url, init] = f.mock.calls[0];
+  expect(url).toBe('/summaries');
+  expect(JSON.parse((init as RequestInit).body as string)).toEqual({ scope: 'book', scope_id: 7, body: 'the gist' });
+});
+
+test('deleteSummary DELETEs', async () => {
+  const f = mockFetch(204, undefined);
+  await api.deleteSummary(9);
+  expect(f).toHaveBeenCalledWith('/summaries/9', { method: 'DELETE' });
+});
+
 test('subscribeFocus delivers parsed focus and unsubscribes', async () => {
   const { subscribeFocus } = await import('./client');
   (globalThis as unknown as { EventSource: unknown }).EventSource = FakeEventSource;
