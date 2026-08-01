@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { NotesView } from './NotesView';
-import { api } from '../api/client';
+import { api, subscribeEvents } from '../api/client';
 
 const navigate = vi.fn();
 vi.mock('react-router-dom', async (orig) => ({
@@ -16,6 +16,7 @@ vi.mock('../api/client', () => ({
     getToc: vi.fn(), listPassages: vi.fn(), listBookSummaries: vi.fn(),
     getBlocks: vi.fn(), getLinks: vi.fn(), createSummary: vi.fn(), deleteSummary: vi.fn(),
   },
+  subscribeEvents: vi.fn(() => () => {}),
 }));
 
 beforeEach(() => {
@@ -98,5 +99,16 @@ test('an existing user summary prefills the editor after load', async () => {
   renderNotes();
   await waitFor(() =>
     expect((screen.getByLabelText('Book summary') as HTMLTextAreaElement).value).toBe('saved gist'),
+  );
+});
+
+test('reloads on a changed event (live sync)', async () => {
+  renderNotes();
+  await screen.findByText('The quick');
+  const cb = (subscribeEvents as ReturnType<typeof vi.fn>).mock.calls[0][0] as (e: unknown) => void;
+  const before = (api.listPassages as ReturnType<typeof vi.fn>).mock.calls.length;
+  act(() => cb({ type: 'changed' }));
+  await waitFor(() =>
+    expect((api.listPassages as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(before),
   );
 });

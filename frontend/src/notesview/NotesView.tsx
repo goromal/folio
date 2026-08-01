@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   api,
+  subscribeEvents,
   type Block,
   type Chapter,
   type Link,
@@ -47,6 +48,23 @@ export function NotesView() {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  // Live sync: reload when data changes elsewhere (e.g. an agent edit via MCP).
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const off = subscribeEvents((e) => {
+      if (e.type === 'changed') {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          void load();
+        }, 300);
+      }
+    });
+    return () => {
+      clearTimeout(t);
+      off();
+    };
   }, [load]);
 
   const chapterOf = useCallback(
