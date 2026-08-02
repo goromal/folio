@@ -121,6 +121,9 @@ class ChangeMiddlewareTest(unittest.TestCase):
     def test_no_broadcast_on_error(self):
         self.assertTrue(self._run("POST", "/passages", 400).empty())
 
+    def test_no_broadcast_on_position(self):
+        self.assertTrue(self._run("PUT", "/books/1/position", 200).empty())
+
 
 if __name__ == "__main__":
     unittest.main()

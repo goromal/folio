@@ -88,5 +88,6 @@ class ChangeBroadcastMiddleware:
         await self.app(scope, receive, send_wrapper)
         if (scope["method"] in ("POST", "PUT", "DELETE")
                 and 200 <= status["code"] < 300
-                and not scope["path"].startswith("/view/")):
+                and not scope["path"].startswith("/view/")
+                and not scope["path"].endswith("/position")):
             await self.view.publish_change()
