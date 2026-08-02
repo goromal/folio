@@ -31,6 +31,13 @@ export interface Summary {
   created_at: string;
 }
 
+export interface Position {
+  book_id: number;
+  chapter_id: number | null;
+  block_id: number | null;
+  updated_at: string;
+}
+
 export interface PassageAnchorInput {
   book_id: number;
   start_block: number;
@@ -94,6 +101,11 @@ export const api = {
   createSummary: (scope: 'book' | 'chapter', scopeId: number, body: string) =>
     req<{ id: number }>('/summaries', jsonInit('POST', { scope, scope_id: scopeId, body })),
   deleteSummary: (id: number) => req<void>(`/summaries/${id}`, { method: 'DELETE' }),
+  getPosition: (bookId: number) =>
+    req<Position | null>(`/books/${bookId}/position`),
+  getLastPosition: () => req<Position | null>('/position'),
+  savePosition: (bookId: number, body: { chapter_id: number | null; block_id: number | null }) =>
+    req<Position>(`/books/${bookId}/position`, jsonInit('PUT', body)),
 };
 
 export interface Focus {
