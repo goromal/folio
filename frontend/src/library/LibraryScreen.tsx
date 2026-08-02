@@ -7,6 +7,11 @@ import styles from './LibraryScreen.module.css';
 export function LibraryScreen() {
   const [books, setBooks] = useState<Book[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [lastBookId, setLastBookId] = useState<number | null>(null);
+
+  useEffect(() => {
+    void api.getLastPosition().then((p) => setLastBookId(p?.book_id ?? null)).catch(() => {});
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -32,6 +37,13 @@ export function LibraryScreen() {
   return (
     <main className={styles.library}>
       <UploadDropzone onUploaded={refresh} />
+      {lastBookId != null && books.some((b) => b.id === lastBookId) && (
+        <p className={styles.resume}>
+          <Link to={`/book/${lastBookId}`}>
+            Continue reading → {books.find((b) => b.id === lastBookId)?.title}
+          </Link>
+        </p>
+      )}
       {error && <p role="alert">{error}</p>}
       <ul className={styles.grid}>
         {books.map((b) => (

@@ -6,7 +6,7 @@ import { LibraryScreen } from './LibraryScreen';
 import { api } from '../api/client';
 
 vi.mock('../api/client', () => ({
-  api: { listBooks: vi.fn(), deleteBook: vi.fn() },
+  api: { listBooks: vi.fn(), deleteBook: vi.fn(), getLastPosition: vi.fn() },
 }));
 
 beforeEach(() => {
@@ -15,6 +15,7 @@ beforeEach(() => {
     { id: 2, title: 'Ethics', author: 'Spinoza' },
   ]);
   (api.deleteBook as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+  (api.getLastPosition as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -48,4 +49,19 @@ test('surfaces an alert when delete fails', async () => {
   await screen.findByText('Critique');
   await userEvent.click(screen.getByRole('button', { name: 'Delete Critique' }));
   expect(await screen.findByRole('alert')).toHaveTextContent(/del boom/);
+});
+
+test('shows Continue reading when a last position exists', async () => {
+  (api.getLastPosition as ReturnType<typeof vi.fn>).mockResolvedValue({
+    book_id: 1, chapter_id: 2, block_id: 3, updated_at: 't',
+  });
+  renderLib();
+  const link = await screen.findByRole('link', { name: /Continue reading/ });
+  expect(link).toHaveAttribute('href', '/book/1');
+});
+
+test('omits Continue reading when there is no last position', async () => {
+  renderLib();
+  await screen.findByText('Critique');
+  expect(screen.queryByRole('link', { name: /Continue reading/ })).not.toBeInTheDocument();
 });
