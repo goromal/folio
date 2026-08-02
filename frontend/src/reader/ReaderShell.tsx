@@ -39,6 +39,20 @@ export function ReaderShell() {
   const [pendingFocus, setPendingFocus] = useState<Focus | null>(null);
   const [flashBlock, setFlashBlock] = useState<number | null>(null);
 
+  // Persisted reading position: restore on open, save (debounced) on move.
+  const restoredRef = useRef(false);            // suppress saves until restore applied
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const savePosition = useCallback((blockId: number | null) => {
+    if (blockId == null || !restoredRef.current) return; // no block, or restore not yet applied
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void api.savePosition(id, { chapter_id: activeChapter, block_id: blockId }).catch(() => {});
+    }, 500);
+  }, [id, activeChapter]);
+
+  useEffect(() => () => clearTimeout(saveTimer.current), []);
+
   // Live events: focus drives view-follow; 'changed' re-fetches passages so agent
   // (MCP) edits show up without a manual refresh (debounced to coalesce bursts).
   useEffect(() => {
@@ -75,15 +89,20 @@ export function ReaderShell() {
   }, [id, focusBlockParam, focusChapterParam]);
 
   // Once the pending focus's chapter blocks are on screen, turn to the block.
+  // Opening the restore gate here ensures no save fires before the restore lands.
   useEffect(() => {
-    if (!pendingFocus || blocks.length === 0) return;
-    const target = pendingFocus.block_id;
-    const raf = requestAnimationFrame(() => {
-      paginatorRef.current?.goToBlock(target);
-      setFlashBlock(target);
-    });
-    setPendingFocus(null);
-    return () => cancelAnimationFrame(raf);
+    if (blocks.length === 0) return;
+    if (pendingFocus) {
+      const target = pendingFocus.block_id;
+      const raf = requestAnimationFrame(() => {
+        paginatorRef.current?.goToBlock(target);
+        setFlashBlock(target);
+        restoredRef.current = true;
+      });
+      setPendingFocus(null);
+      return () => cancelAnimationFrame(raf);
+    }
+    restoredRef.current = true;
   }, [pendingFocus, blocks]);
 
   // Clear the flash after a moment.
@@ -101,22 +120,38 @@ export function ReaderShell() {
     }
   }, [id]);
 
-  // Load TOC (reset on book switch).
+  // Load TOC (reset on book switch), then apply the initial position:
+  // ?focus deep-link > saved position > first chapter.
   useEffect(() => {
     let cancelled = false;
     setChapters([]); setActiveChapter(null); setBlocks([]); setError(null);
+    restoredRef.current = false;
     void (async () => {
       try {
-        const toc = await api.getToc(id);
+        const [toc, saved] = await Promise.all([
+          api.getToc(id),
+          focusBlockParam ? Promise.resolve(null) : api.getPosition(id).catch(() => null),
+        ]);
         if (cancelled) return;
         setChapters(toc);
-        setActiveChapter(focusChapterParam ? Number(focusChapterParam) : (toc[0]?.id ?? null));
+        if (focusBlockParam) {
+          setActiveChapter(focusChapterParam ? Number(focusChapterParam) : (toc[0]?.id ?? null));
+        } else if (saved && saved.chapter_id != null) {
+          setActiveChapter(saved.chapter_id);
+          if (saved.block_id != null) {
+            setPendingFocus({
+              version: 0, book_id: id, chapter_id: saved.chapter_id, block_id: saved.block_id,
+            });
+          }
+        } else {
+          setActiveChapter(toc[0]?.id ?? null);
+        }
       } catch (e) {
         if (!cancelled) setError(String(e));
       }
     })();
     return () => { cancelled = true; };
-  }, [id, focusChapterParam]);
+  }, [id, focusBlockParam, focusChapterParam]);
 
   // Load chapter blocks.
   useEffect(() => {
@@ -230,7 +265,7 @@ export function ReaderShell() {
         </div>
         {error && <p role="alert">{error}</p>}
         <div ref={flowRef} onClick={onFlowClick} style={{ height: '70vh' }}>
-          <Paginator ref={paginatorRef} resetKey={activeChapter}>
+          <Paginator ref={paginatorRef} resetKey={activeChapter} onPageBlock={savePosition}>
             <BlockList blocks={blocks} flashBlockId={flashBlock} />
           </Paginator>
         </div>
