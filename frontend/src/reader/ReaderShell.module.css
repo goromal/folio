@@ -1,0 +1,31 @@
+.reader { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; padding: 1rem; }
+/* Collapsed TOC → content takes the full width (which also lets the paginator's
+   measured column count expand back to two). */
+.reader[data-toc='closed'] { grid-template-columns: 1fr; }
+
+.toc {
+  border-right: 1px solid var(--border);
+  padding-right: 1rem;
+  overflow-y: auto;
+  max-height: 85vh;
+}
+
+/* min-width:0 lets the 1fr grid track actually shrink/grow; the paginator flow
+   sets its own font-size/line-height and needs the full width. */
+.content { min-width: 0; }
+
+.contentBar { display: flex; align-items: center; margin-bottom: 0.5rem; }
+.tocToggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  cursor: pointer;
+  padding: 0.15rem 0.55rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+.tocToggle:hover { background: var(--surface); }
+
+.notesLink { margin-left: auto; color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+.notesLink:hover { text-decoration: underline; }

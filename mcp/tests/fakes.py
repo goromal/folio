@@ -42,6 +42,9 @@ class FakeFolioClient:
         return self._record("link_passages", from_passage=from_passage,
                             to_passage=to_passage, note=note)
 
+    def goto(self, block_id):
+        return self._record("goto", block_id=block_id)
+
     # higher-order (used by later tasks' tests)
     def store_summary(self, scope, scope_id, body):
         return self._record("store_summary", scope=scope, scope_id=scope_id, body=body)

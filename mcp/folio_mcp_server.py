@@ -69,6 +69,9 @@ class FolioClient:
         return self._request("POST", f"/passages/{from_passage}/links",
                              {"to_passage": to_passage, "note": note})
 
+    def goto(self, block_id):
+        return self._request("POST", "/view/focus", {"block_id": block_id})
+
     # higher-order / lists
     def store_summary(self, scope, scope_id, body):
         return self._request("POST", "/summaries", {
@@ -162,6 +165,14 @@ def handle_tool_call(client, name, args):
             return client.get_summaries(args["scope"], args["scope_id"])
         elif name == "folio_export_prepare":
             return export_prepare(client, args["book_id"], args.get("chapter_id"))
+        elif name == "folio_goto":
+            block_id = args.get("block_id")
+            if block_id is None:
+                pid = args.get("passage_id")
+                if pid is None:
+                    raise ValueError("folio_goto requires block_id or passage_id")
+                block_id = client.get_passage(pid)["start_block"]
+            return client.goto(block_id)
         else:
             return {"error": f"Unknown tool: {name}"}
     except Exception as e:
@@ -252,6 +263,12 @@ TOOLS = [
                      "properties": {"book_id": {"type": "integer"},
                                     "chapter_id": {"type": "integer"}},
                      "required": ["book_id"]}},
+    {"name": "folio_goto",
+     "description": "Point the human reader at a block (or a passage's start block): "
+                    "their live view follows to that block's page.",
+     "inputSchema": {"type": "object",
+                     "properties": {"block_id": {"type": "integer"},
+                                    "passage_id": {"type": "integer"}}}},
 ]
 
 

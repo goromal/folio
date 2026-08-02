@@ -2,20 +2,24 @@ import os
 import tempfile
 
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
+from fastapi.responses import StreamingResponse
 
 from folio_backend import ingest, search as search_mod, store
 from folio_backend.db import connect, init_db
 from folio_backend.models import (
     BookOut, ChapterOut, BlockOut, SearchHit,
     PassageIn, PassageOut, HighlightIn, NoteIn, NoteUpdate, TagIn,
-    LinkIn, SummaryIn,
+    LinkIn, SummaryIn, FocusIn,
 )
+from folio_backend.view import ViewState, focus_event_stream, ChangeBroadcastMiddleware
 
 
-def create_app(db_path):
+def create_app(db_path, static_dir=None):
     init_db(connect(db_path))
     app = FastAPI(title="folio-backend")
     app.state.db_path = db_path
+    app.state.view = ViewState()
+    app.add_middleware(ChangeBroadcastMiddleware, view=app.state.view)
 
     def db():
         conn = connect(db_path)
@@ -193,5 +197,55 @@ def create_app(db_path):
             "(SELECT id FROM chapters WHERE book_id = ?)) ORDER BY id",
             (book_id, book_id)).fetchall()
         return [dict(r) for r in rows]
+
+    # ---- deletes ----
+    @app.delete("/books/{book_id}", status_code=204)
+    def delete_book_ep(book_id: int, conn=Depends(db)):
+        store.delete_book(conn, book_id)
+
+    @app.delete("/passages/{passage_id}", status_code=204)
+    def delete_passage_ep(passage_id: int, conn=Depends(db)):
+        store.delete_passage(conn, passage_id)
+
+    @app.delete("/highlights/{highlight_id}", status_code=204)
+    def delete_highlight_ep(highlight_id: int, conn=Depends(db)):
+        store.delete_highlight(conn, highlight_id)
+
+    @app.delete("/notes/{note_id}", status_code=204)
+    def delete_note_ep(note_id: int, conn=Depends(db)):
+        store.delete_note(conn, note_id)
+
+    @app.delete("/passages/{passage_id}/tags/{tag_id}", status_code=204)
+    def untag_passage_ep(passage_id: int, tag_id: int, conn=Depends(db)):
+        store.untag_passage(conn, passage_id, tag_id)
+
+    @app.delete("/links/{link_id}", status_code=204)
+    def delete_link_ep(link_id: int, conn=Depends(db)):
+        store.delete_link(conn, link_id)
+
+    @app.delete("/summaries/{summary_id}", status_code=204)
+    def delete_summary_ep(summary_id: int, conn=Depends(db)):
+        store.delete_summary(conn, summary_id)
+
+    # ---- serve built SPA at /folio (env-gated) ----
+    resolved_static = static_dir or os.environ.get("FOLIO_STATIC_DIR")
+    if resolved_static and os.path.isdir(resolved_static):
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/folio", StaticFiles(directory=resolved_static, html=True),
+                  name="folio")
+
+    # ---- agent view-follow ----
+    @app.post("/view/focus")
+    async def set_view_focus(body: FocusIn, conn=Depends(db)):
+        row = conn.execute(
+            "SELECT book_id, chapter_id FROM blocks WHERE id = ?", (body.block_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "block not found")
+        return await app.state.view.publish(row["book_id"], row["chapter_id"], body.block_id)
+
+    @app.get("/view/stream")
+    async def view_stream():
+        return StreamingResponse(
+            focus_event_stream(app.state.view), media_type="text/event-stream")
 
     return app

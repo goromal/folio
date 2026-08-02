@@ -64,6 +64,23 @@ class ToolDispatchTest(unittest.TestCase):
                          ("link_passages",
                           {"from_passage": 1, "to_passage": 2, "note": None}))
 
+    def test_goto_with_block_id(self):
+        c = FakeFolioClient()
+        srv.handle_tool_call(c, "folio_goto", {"block_id": 5})
+        self.assertEqual(c.calls[-1], ("goto", {"block_id": 5}))
+
+    def test_goto_resolves_passage_to_start_block(self):
+        c = FakeFolioClient(get_passage={"start_block": 7})
+        srv.handle_tool_call(c, "folio_goto", {"passage_id": 2})
+        self.assertEqual(c.calls[-1], ("goto", {"block_id": 7}))
+
+    def test_goto_requires_an_id(self):
+        c = FakeFolioClient()
+        # Missing ids surface as a graceful {"error": ...} (the stdio loop has no
+        # outer try/except — a raised exception would crash the server).
+        result = srv.handle_tool_call(c, "folio_goto", {})
+        self.assertIn("error", result)
+
     def test_unknown_tool(self):
         out = srv.handle_tool_call(FakeFolioClient(), "folio_nope", {})
         self.assertEqual(out, {"error": "Unknown tool: folio_nope"})
