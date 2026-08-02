@@ -1,0 +1,7 @@
+{
+  "name": "folio-desktop",
+  "private": true,
+  "version": "0.0.0",
+  "description": "folio Electron desktop shell (loads the backend-served SPA at /folio)",
+  "main": "main.js"
+}
