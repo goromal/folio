@@ -105,6 +105,28 @@ def get_summaries(conn, scope, scope_id):
         (scope, scope_id)).fetchall()
 
 
+# ---- reading position -----------------------------------------------------
+def save_position(conn, book_id, chapter_id, block_id):
+    conn.execute(
+        "INSERT INTO reading_position (book_id, chapter_id, block_id, updated_at) "
+        "VALUES (?,?,?,?) "
+        "ON CONFLICT(book_id) DO UPDATE SET "
+        "chapter_id = excluded.chapter_id, block_id = excluded.block_id, "
+        "updated_at = excluded.updated_at",
+        (book_id, chapter_id, block_id, _now()))
+    conn.commit()
+
+
+def get_position(conn, book_id):
+    return conn.execute(
+        "SELECT * FROM reading_position WHERE book_id = ?", (book_id,)).fetchone()
+
+
+def get_last_position(conn):
+    return conn.execute(
+        "SELECT * FROM reading_position ORDER BY updated_at DESC LIMIT 1").fetchone()
+
+
 # ---- deletes --------------------------------------------------------------
 def delete_book(conn, book_id):
     conn.execute("DELETE FROM books WHERE id = ?", (book_id,))
