@@ -9,8 +9,10 @@ export interface PaginatorHandle {
   goToBlock(blockId: number): void;
 }
 
-export const Paginator = forwardRef<PaginatorHandle, { children: ReactNode; resetKey: unknown }>(
-  function Paginator({ children, resetKey }, ref) {
+export const Paginator = forwardRef<
+  PaginatorHandle,
+  { children: ReactNode; resetKey: unknown; onPageBlock?: (blockId: number | null) => void }
+>(function Paginator({ children, resetKey, onPageBlock }, ref) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
@@ -39,6 +41,29 @@ export const Paginator = forwardRef<PaginatorHandle, { children: ReactNode; rese
     setPageCount(count);
     setPage((p) => clampPage(p, count));
   }, []);
+
+  const reportPageBlock = useCallback(() => {
+    if (!onPageBlock) return;
+    const flow = flowRef.current;
+    if (!flow || stride <= 0) { onPageBlock(null); return; } // jsdom / no layout
+    const left = page * stride; // untranslated x of the current page's left edge
+    const flowLeft = flow.getBoundingClientRect().left;
+    let best: number | null = null;
+    for (const el of Array.from(flow.querySelectorAll('[data-block-id]')) as HTMLElement[]) {
+      const r = el.getBoundingClientRect();
+      const x = r.left - flowLeft + page * stride; // block's untranslated left x
+      if (x + r.width > left) { // first block whose extent reaches this page
+        const id = Number(el.getAttribute('data-block-id'));
+        best = Number.isNaN(id) ? null : id;
+        break;
+      }
+    }
+    onPageBlock(best);
+  }, [onPageBlock, page, stride]);
+
+  useEffect(() => {
+    reportPageBlock();
+  }, [reportPageBlock, pageCount]);
 
   // Reset to the first page when the content changes (chapter switch).
   useLayoutEffect(() => {

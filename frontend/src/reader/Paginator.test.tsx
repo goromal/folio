@@ -1,7 +1,7 @@
 import { createRef } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { Paginator, type PaginatorHandle } from './Paginator';
 
 test('renders children inside the flow root', () => {
@@ -35,4 +35,15 @@ test('exposes a goToBlock handle that is safe in jsdom', () => {
   );
   expect(ref.current).not.toBeNull();
   expect(() => ref.current!.goToBlock(1)).not.toThrow();
+});
+
+test('reports null via onPageBlock under jsdom (no layout)', () => {
+  const onPageBlock = vi.fn();
+  render(
+    <Paginator resetKey={0} onPageBlock={onPageBlock}>
+      <p data-block-id="7" data-block-type="para">hello</p>
+    </Paginator>,
+  );
+  // jsdom has no layout -> stride 0 -> null (asserts no crash + the null contract).
+  expect(onPageBlock).toHaveBeenCalledWith(null);
 });
