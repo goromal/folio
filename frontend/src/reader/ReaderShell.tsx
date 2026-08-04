@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, subscribeEvents, type Block, type Chapter, type Focus, type Link, type PassageDetail } from '../api/client';
 import { BlockList } from './BlockList';
@@ -89,18 +89,17 @@ export function ReaderShell() {
   }, [id, focusBlockParam, focusChapterParam]);
 
   // Once the pending focus's chapter blocks are on screen, turn to the block.
-  // Opening the restore gate here ensures no save fires before the restore lands.
-  useEffect(() => {
+  // A layout effect (not an rAF) so the jump is applied synchronously after the child
+  // Paginator has measured — the previous rAF was canceled by this effect's own cleanup
+  // when setPendingFocus(null) re-ran it, so goToBlock never fired. The save gate opens
+  // only AFTER the jump lands, so the initial page-0 report can't clobber the position.
+  useLayoutEffect(() => {
     if (blocks.length === 0) return;
     if (pendingFocus) {
       const target = pendingFocus.block_id;
-      const raf = requestAnimationFrame(() => {
-        paginatorRef.current?.goToBlock(target);
-        setFlashBlock(target);
-        restoredRef.current = true;
-      });
+      paginatorRef.current?.goToBlock(target);
+      setFlashBlock(target);
       setPendingFocus(null);
-      return () => cancelAnimationFrame(raf);
     }
     restoredRef.current = true;
   }, [pendingFocus, blocks]);

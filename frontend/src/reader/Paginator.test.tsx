@@ -37,13 +37,14 @@ test('exposes a goToBlock handle that is safe in jsdom', () => {
   expect(() => ref.current!.goToBlock(1)).not.toThrow();
 });
 
-test('reports null via onPageBlock under jsdom (no layout)', () => {
+test('does not report a page block on initial render (only user page turns report)', () => {
   const onPageBlock = vi.fn();
   render(
     <Paginator resetKey={0} onPageBlock={onPageBlock}>
       <p data-block-id="7" data-block-type="para">hello</p>
     </Paginator>,
   );
-  // jsdom has no layout -> stride 0 -> null (asserts no crash + the null contract).
-  expect(onPageBlock).toHaveBeenCalledWith(null);
+  // A programmatic/initial render must NOT report — otherwise a restore jump would
+  // clobber the saved position. Reporting is driven only by user page turns (go()).
+  expect(onPageBlock).not.toHaveBeenCalled();
 });
