@@ -179,6 +179,18 @@ test('selecting a chapter from the TOC saves its first block', async () => {
   );
 });
 
+test('an agent/MCP focus (or note deep-link) saves the focused block', async () => {
+  (api.getPosition as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+  renderReader();
+  await screen.findByText('First chapter.'); // restore settled
+  const cb = (subscribeEvents as ReturnType<typeof vi.fn>).mock.calls[0][0] as (f: unknown) => void;
+  act(() => cb({ type: 'focus', version: 1, book_id: 7, chapter_id: 2, block_id: 20 }));
+  await waitFor(
+    () => expect(api.savePosition).toHaveBeenCalledWith(7, { chapter_id: 2, block_id: 20 }),
+    { timeout: 1500 },
+  );
+});
+
 test('saves work when the first chapter is empty (titlepage) — gate still opens', async () => {
   (api.getPosition as ReturnType<typeof vi.fn>).mockResolvedValue(null);
   (api.getToc as ReturnType<typeof vi.fn>).mockResolvedValue([

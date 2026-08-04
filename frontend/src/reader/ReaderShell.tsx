@@ -95,16 +95,21 @@ export function ReaderShell() {
   // when setPendingFocus(null) re-ran it, so goToBlock never fired. The save gate opens
   // only AFTER the jump lands, so the initial page-0 report can't clobber the position.
   useLayoutEffect(() => {
+    if (pendingFocus && blocks.length === 0) return; // wait for the chapter's blocks before jumping
+    // Open the save gate even when the chapter has no blocks (e.g. a titlepage): otherwise
+    // a book whose first chapter is empty never opens the gate and NOTHING ever saves.
+    restoredRef.current = true;
     if (pendingFocus) {
-      if (blocks.length === 0) return; // wait for the chapter's blocks before jumping
       const target = pendingFocus.block_id;
       paginatorRef.current?.goToBlock(target);
       setFlashBlock(target);
       setPendingFocus(null);
+      // Persist a focus jump so it survives reopen. Covers restoring a saved position AND
+      // session jumps: clicking a note/passage (?focus deep-link) and an agent moving the
+      // reader via the MCP (SSE 'focus'). Saving the exact target (not the reportPageBlock
+      // reading) avoids the restore race.
+      savePosition(target);
     }
-    // Open the save gate even when the chapter has no blocks (e.g. a titlepage): otherwise
-    // a book whose first chapter is empty never opens the gate and NOTHING ever saves.
-    restoredRef.current = true;
   }, [pendingFocus, blocks]);
 
   // Clear the flash after a moment.
