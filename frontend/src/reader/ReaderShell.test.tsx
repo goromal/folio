@@ -167,3 +167,14 @@ test('saves position (debounced) on page turn after restore', async () => {
     { timeout: 1500 },
   );
 });
+
+test('selecting a chapter from the TOC saves its first block', async () => {
+  (api.getPosition as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+  renderReader();
+  await screen.findByText('First chapter.'); // initial chapter loaded, restore settled
+  await userEvent.click(screen.getByRole('button', { name: 'Chapter Two' }));
+  await waitFor(
+    () => expect(api.savePosition).toHaveBeenCalledWith(7, { chapter_id: 2, block_id: 20 }),
+    { timeout: 1500 },
+  );
+});

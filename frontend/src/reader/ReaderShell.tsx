@@ -41,6 +41,7 @@ export function ReaderShell() {
 
   // Persisted reading position: restore on open, save (debounced) on move.
   const restoredRef = useRef(false);            // suppress saves until restore applied
+  const userChapterNav = useRef(false);         // a TOC-selected chapter saves; a restore/agent jump does not
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const savePosition = useCallback((blockId: number | null) => {
@@ -159,7 +160,15 @@ export function ReaderShell() {
     void (async () => {
       try {
         const b = await api.getBlocks(id, activeChapter);
-        if (!cancelled) setBlocks(b);
+        if (cancelled) return;
+        setBlocks(b);
+        // A user-selected chapter saves its first block, so books read by chapter
+        // navigation (or with single-page chapters that can't be paged) still persist a
+        // position. Restore/agent jumps set pendingFocus instead and don't flag this.
+        if (userChapterNav.current) {
+          userChapterNav.current = false;
+          if (restoredRef.current && b[0]) savePosition(b[0].id);
+        }
       } catch (e) {
         if (!cancelled) setError(String(e));
       }
@@ -244,7 +253,11 @@ export function ReaderShell() {
     <div className={styles.reader} data-toc={tocOpen ? 'open' : 'closed'}>
       {tocOpen && (
         <aside className={styles.toc}>
-          <TocDrawer chapters={chapters} activeId={activeChapter} onSelect={setActiveChapter} />
+          <TocDrawer
+            chapters={chapters}
+            activeId={activeChapter}
+            onSelect={(cid) => { userChapterNav.current = true; setActiveChapter(cid); }}
+          />
         </aside>
       )}
       <section className={styles.content}>
