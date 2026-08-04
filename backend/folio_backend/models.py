@@ -80,3 +80,15 @@ class SummaryIn(BaseModel):
 
 class FocusIn(BaseModel):
     block_id: int
+
+
+class PositionIn(BaseModel):
+    chapter_id: Optional[int] = None
+    block_id: Optional[int] = None
+
+
+class PositionOut(BaseModel):
+    book_id: int
+    chapter_id: Optional[int] = None
+    block_id: Optional[int] = None
+    updated_at: str

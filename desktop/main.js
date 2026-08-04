@@ -4,6 +4,12 @@
 // packaged on Nix by wrapping nixpkgs' electron over this directory.
 const { app, BrowserWindow, shell } = require('electron');
 
+// Thin shell over a LOCAL SPA: never serve a cached bundle. Electron's HTTP cache
+// persists across launches, so after a backend redeploy the shell would otherwise
+// render a stale SPA (e.g. miss reading-position restore) while the web UI is current.
+// Disabling the cache guarantees desktop == web; the cost is nil over localhost.
+app.commandLine.appendSwitch('disable-http-cache');
+
 const PORT = process.env.FOLIO_PORT || '6666';
 const URL = process.env.FOLIO_URL || `http://localhost:${PORT}/folio`;
 

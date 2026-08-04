@@ -152,6 +152,30 @@ test('deleteSummary DELETEs', async () => {
   expect(f).toHaveBeenCalledWith('/summaries/9', { method: 'DELETE' });
 });
 
+test('getPosition GETs the book position', async () => {
+  const f = mockFetch(200, { book_id: 1, chapter_id: 2, block_id: 3, updated_at: 't' });
+  const p = await api.getPosition(1);
+  expect(f).toHaveBeenCalledWith('/books/1/position', undefined);
+  expect(p?.block_id).toBe(3);
+});
+
+test('getLastPosition GETs /position and can resolve null', async () => {
+  const f = mockFetch(200, null);
+  const p = await api.getLastPosition();
+  expect(f).toHaveBeenCalledWith('/position', undefined);
+  expect(p).toBeNull();
+});
+
+test('savePosition PUTs the position body', async () => {
+  const f = mockFetch(200, { book_id: 1, chapter_id: 2, block_id: 3, updated_at: 't' });
+  const r = await api.savePosition(1, { chapter_id: 2, block_id: 3 });
+  const [url, init] = f.mock.calls[0];
+  expect(url).toBe('/books/1/position');
+  expect((init as RequestInit).method).toBe('PUT');
+  expect(JSON.parse((init as RequestInit).body as string)).toEqual({ chapter_id: 2, block_id: 3 });
+  expect(r.block_id).toBe(3);
+});
+
 test('subscribeEvents delivers parsed events and unsubscribes', async () => {
   const { subscribeEvents } = await import('./client');
   (globalThis as unknown as { EventSource: unknown }).EventSource = FakeEventSource;

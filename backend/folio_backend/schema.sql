@@ -93,3 +93,10 @@ CREATE TABLE IF NOT EXISTS summaries (
     generated_by TEXT NOT NULL DEFAULT 'user',
     created_at   TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS reading_position (
+    book_id    INTEGER PRIMARY KEY REFERENCES books(id)    ON DELETE CASCADE,
+    chapter_id INTEGER              REFERENCES chapters(id) ON DELETE SET NULL,
+    block_id   INTEGER              REFERENCES blocks(id)   ON DELETE SET NULL,
+    updated_at TEXT NOT NULL
+);

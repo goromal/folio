@@ -2,15 +2,17 @@ import {
   forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect,
   useRef, useState, type ReactNode,
 } from 'react';
-import { computePageCount, clampPage, translateXFor } from './pagination';
+import { computePageCount, clampPage, translateXFor, topVisibleBlock } from './pagination';
 import styles from './Paginator.module.css';
 
 export interface PaginatorHandle {
   goToBlock(blockId: number): void;
 }
 
-export const Paginator = forwardRef<PaginatorHandle, { children: ReactNode; resetKey: unknown }>(
-  function Paginator({ children, resetKey }, ref) {
+export const Paginator = forwardRef<
+  PaginatorHandle,
+  { children: ReactNode; resetKey: unknown; onPageBlock?: (blockId: number | null) => void }
+>(function Paginator({ children, resetKey, onPageBlock }, ref) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
@@ -40,6 +42,34 @@ export const Paginator = forwardRef<PaginatorHandle, { children: ReactNode; rese
     setPage((p) => clampPage(p, count));
   }, []);
 
+  const reportPageBlock = useCallback(() => {
+    if (!onPageBlock) return;
+    const flow = flowRef.current;
+    const vp = viewportRef.current;
+    if (!flow || !vp || stride <= 0) { onPageBlock(null); return; } // jsdom / no layout
+    // Use live on-screen positions vs. the viewport, not page*stride arithmetic: the
+    // column gap drifts across pages, so the first block whose left edge is inside the
+    // viewport is the drift-proof top-of-page block. (`page` stays in deps so this
+    // re-runs after a page turn moves the transform.)
+    const vpRect = vp.getBoundingClientRect();
+    const boxes = (Array.from(flow.querySelectorAll('[data-block-id]')) as HTMLElement[]).map((el) => ({
+      id: Number(el.getAttribute('data-block-id')),
+      left: el.getBoundingClientRect().left,
+    }));
+    onPageBlock(topVisibleBlock(boxes, vpRect.left, vpRect.right));
+  }, [onPageBlock, page, stride]);
+
+  // Report the page's top block ONLY after a user-initiated page turn, never after a
+  // programmatic page change (chapter reset, re-measure, or a restore goToBlock). This
+  // is what keeps a restore from clobbering the saved position: the restore jump moves
+  // `page` but must not trigger a save.
+  const userNavRef = useRef(false);
+  useEffect(() => {
+    if (!userNavRef.current) return;
+    userNavRef.current = false;
+    reportPageBlock();
+  }, [page, reportPageBlock]);
+
   // Reset to the first page when the content changes (chapter switch).
   useLayoutEffect(() => {
     setPage(0);
@@ -61,7 +91,10 @@ export const Paginator = forwardRef<PaginatorHandle, { children: ReactNode; rese
   }, [measure]);
 
   const go = useCallback(
-    (delta: number) => setPage((p) => clampPage(p + delta, pageCount)),
+    (delta: number) => {
+      userNavRef.current = true; // mark this page change as user-initiated -> report it
+      setPage((p) => clampPage(p + delta, pageCount));
+    },
     [pageCount],
   );
 
@@ -82,14 +115,18 @@ export const Paginator = forwardRef<PaginatorHandle, { children: ReactNode; rese
         const vp = viewportRef.current;
         if (!flow || !vp) return;
         const el = flow.querySelector(`[data-block-id="${blockId}"]`) as HTMLElement | null;
-        if (!el) return;
         const gap = parseFloat(getComputedStyle(flow).columnGap) || 0;
         const s = vp.clientWidth + gap;
-        if (s <= 0) return; // no layout (jsdom) -> no-op
         // x within untranslated content = element x in the translated flow plus
         // the current translate (page*stride).
+        if (!el) return;
+        if (s <= 0) return; // no layout (jsdom) -> no-op
         const x = el.getBoundingClientRect().left - flow.getBoundingClientRect().left + page * stride;
-        setPage(clampPage(Math.floor(x / s), pageCount));
+        // Count pages from live layout, not the (possibly stale) pageCount state: on a
+        // fresh chapter+restore the measure() that sets pageCount may not have committed
+        // yet, and clamping the target against a stale count of 1 would pin us to page 0.
+        const count = computePageCount(flow.scrollWidth + gap, s);
+        setPage(clampPage(Math.floor(x / s), count));
       },
     }),
     [page, stride, pageCount],

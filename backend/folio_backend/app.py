@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import tempfile
 
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
@@ -9,7 +10,7 @@ from folio_backend.db import connect, init_db
 from folio_backend.models import (
     BookOut, ChapterOut, BlockOut, SearchHit,
     PassageIn, PassageOut, HighlightIn, NoteIn, NoteUpdate, TagIn,
-    LinkIn, SummaryIn, FocusIn,
+    LinkIn, SummaryIn, FocusIn, PositionIn, PositionOut,
 )
 from folio_backend.view import ViewState, focus_event_stream, ChangeBroadcastMiddleware
 
@@ -247,5 +248,24 @@ def create_app(db_path, static_dir=None):
     async def view_stream():
         return StreamingResponse(
             focus_event_stream(app.state.view), media_type="text/event-stream")
+
+    # ---- reading position (persisted; excluded from 'changed' broadcast) ----
+    @app.put("/books/{book_id}/position", response_model=PositionOut)
+    def save_position_ep(book_id: int, p: PositionIn, conn=Depends(db)):
+        try:
+            store.save_position(conn, book_id, p.chapter_id, p.block_id)
+        except sqlite3.IntegrityError:
+            raise HTTPException(404, "book not found")
+        return dict(store.get_position(conn, book_id))
+
+    @app.get("/books/{book_id}/position")
+    def get_position_ep(book_id: int, conn=Depends(db)):
+        row = store.get_position(conn, book_id)
+        return dict(row) if row else None
+
+    @app.get("/position")
+    def get_last_position_ep(conn=Depends(db)):
+        row = store.get_last_position(conn)
+        return dict(row) if row else None
 
     return app

@@ -1,7 +1,7 @@
 import { createRef } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { Paginator, type PaginatorHandle } from './Paginator';
 
 test('renders children inside the flow root', () => {
@@ -35,4 +35,16 @@ test('exposes a goToBlock handle that is safe in jsdom', () => {
   );
   expect(ref.current).not.toBeNull();
   expect(() => ref.current!.goToBlock(1)).not.toThrow();
+});
+
+test('does not report a page block on initial render (only user page turns report)', () => {
+  const onPageBlock = vi.fn();
+  render(
+    <Paginator resetKey={0} onPageBlock={onPageBlock}>
+      <p data-block-id="7" data-block-type="para">hello</p>
+    </Paginator>,
+  );
+  // A programmatic/initial render must NOT report — otherwise a restore jump would
+  // clobber the saved position. Reporting is driven only by user page turns (go()).
+  expect(onPageBlock).not.toHaveBeenCalled();
 });

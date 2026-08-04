@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, subscribeEvents, type Block, type Chapter, type Focus, type Link, type PassageDetail } from '../api/client';
 import { BlockList } from './BlockList';
@@ -39,6 +39,21 @@ export function ReaderShell() {
   const [pendingFocus, setPendingFocus] = useState<Focus | null>(null);
   const [flashBlock, setFlashBlock] = useState<number | null>(null);
 
+  // Persisted reading position: restore on open, save (debounced) on move.
+  const restoredRef = useRef(false);            // suppress saves until restore applied
+  const userChapterNav = useRef(false);         // a TOC-selected chapter saves; a restore/agent jump does not
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const savePosition = useCallback((blockId: number | null) => {
+    if (blockId == null || !restoredRef.current) return; // no block, or restore not yet applied
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void api.savePosition(id, { chapter_id: activeChapter, block_id: blockId }).catch(() => {});
+    }, 500);
+  }, [id, activeChapter]);
+
+  useEffect(() => () => clearTimeout(saveTimer.current), []);
+
   // Live events: focus drives view-follow; 'changed' re-fetches passages so agent
   // (MCP) edits show up without a manual refresh (debounced to coalesce bursts).
   useEffect(() => {
@@ -75,15 +90,26 @@ export function ReaderShell() {
   }, [id, focusBlockParam, focusChapterParam]);
 
   // Once the pending focus's chapter blocks are on screen, turn to the block.
-  useEffect(() => {
-    if (!pendingFocus || blocks.length === 0) return;
-    const target = pendingFocus.block_id;
-    const raf = requestAnimationFrame(() => {
+  // A layout effect (not an rAF) so the jump is applied synchronously after the child
+  // Paginator has measured — the previous rAF was canceled by this effect's own cleanup
+  // when setPendingFocus(null) re-ran it, so goToBlock never fired. The save gate opens
+  // only AFTER the jump lands, so the initial page-0 report can't clobber the position.
+  useLayoutEffect(() => {
+    if (pendingFocus && blocks.length === 0) return; // wait for the chapter's blocks before jumping
+    // Open the save gate even when the chapter has no blocks (e.g. a titlepage): otherwise
+    // a book whose first chapter is empty never opens the gate and NOTHING ever saves.
+    restoredRef.current = true;
+    if (pendingFocus) {
+      const target = pendingFocus.block_id;
       paginatorRef.current?.goToBlock(target);
       setFlashBlock(target);
-    });
-    setPendingFocus(null);
-    return () => cancelAnimationFrame(raf);
+      setPendingFocus(null);
+      // Persist a focus jump so it survives reopen. Covers restoring a saved position AND
+      // session jumps: clicking a note/passage (?focus deep-link) and an agent moving the
+      // reader via the MCP (SSE 'focus'). Saving the exact target (not the reportPageBlock
+      // reading) avoids the restore race.
+      savePosition(target);
+    }
   }, [pendingFocus, blocks]);
 
   // Clear the flash after a moment.
@@ -101,22 +127,38 @@ export function ReaderShell() {
     }
   }, [id]);
 
-  // Load TOC (reset on book switch).
+  // Load TOC (reset on book switch), then apply the initial position:
+  // ?focus deep-link > saved position > first chapter.
   useEffect(() => {
     let cancelled = false;
     setChapters([]); setActiveChapter(null); setBlocks([]); setError(null);
+    restoredRef.current = false;
     void (async () => {
       try {
-        const toc = await api.getToc(id);
+        const [toc, saved] = await Promise.all([
+          api.getToc(id),
+          focusBlockParam ? Promise.resolve(null) : api.getPosition(id).catch(() => null),
+        ]);
         if (cancelled) return;
         setChapters(toc);
-        setActiveChapter(focusChapterParam ? Number(focusChapterParam) : (toc[0]?.id ?? null));
+        if (focusBlockParam) {
+          setActiveChapter(focusChapterParam ? Number(focusChapterParam) : (toc[0]?.id ?? null));
+        } else if (saved && saved.chapter_id != null) {
+          setActiveChapter(saved.chapter_id);
+          if (saved.block_id != null) {
+            setPendingFocus({
+              version: 0, book_id: id, chapter_id: saved.chapter_id, block_id: saved.block_id,
+            });
+          }
+        } else {
+          setActiveChapter(toc[0]?.id ?? null);
+        }
       } catch (e) {
         if (!cancelled) setError(String(e));
       }
     })();
     return () => { cancelled = true; };
-  }, [id, focusChapterParam]);
+  }, [id, focusBlockParam, focusChapterParam]);
 
   // Load chapter blocks.
   useEffect(() => {
@@ -125,7 +167,15 @@ export function ReaderShell() {
     void (async () => {
       try {
         const b = await api.getBlocks(id, activeChapter);
-        if (!cancelled) setBlocks(b);
+        if (cancelled) return;
+        setBlocks(b);
+        // A user-selected chapter saves its first block, so books read by chapter
+        // navigation (or with single-page chapters that can't be paged) still persist a
+        // position. Restore/agent jumps set pendingFocus instead and don't flag this.
+        if (userChapterNav.current) {
+          userChapterNav.current = false;
+          if (restoredRef.current && b[0]) savePosition(b[0].id);
+        }
       } catch (e) {
         if (!cancelled) setError(String(e));
       }
@@ -210,7 +260,11 @@ export function ReaderShell() {
     <div className={styles.reader} data-toc={tocOpen ? 'open' : 'closed'}>
       {tocOpen && (
         <aside className={styles.toc}>
-          <TocDrawer chapters={chapters} activeId={activeChapter} onSelect={setActiveChapter} />
+          <TocDrawer
+            chapters={chapters}
+            activeId={activeChapter}
+            onSelect={(cid) => { userChapterNav.current = true; setActiveChapter(cid); }}
+          />
         </aside>
       )}
       <section className={styles.content}>
@@ -230,7 +284,7 @@ export function ReaderShell() {
         </div>
         {error && <p role="alert">{error}</p>}
         <div ref={flowRef} onClick={onFlowClick} style={{ height: '70vh' }}>
-          <Paginator ref={paginatorRef} resetKey={activeChapter}>
+          <Paginator ref={paginatorRef} resetKey={activeChapter} onPageBlock={savePosition}>
             <BlockList blocks={blocks} flashBlockId={flashBlock} />
           </Paginator>
         </div>
