@@ -178,3 +178,25 @@ test('selecting a chapter from the TOC saves its first block', async () => {
     { timeout: 1500 },
   );
 });
+
+test('saves work when the first chapter is empty (titlepage) — gate still opens', async () => {
+  (api.getPosition as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+  (api.getToc as ReturnType<typeof vi.fn>).mockResolvedValue([
+    { id: 88, title: 'titlepage', order_idx: 0, parent_id: null },
+    { id: 2, title: 'Chapter Two', order_idx: 1, parent_id: null },
+  ]);
+  (api.getBlocks as ReturnType<typeof vi.fn>).mockImplementation((_b: number, ch?: number) =>
+    Promise.resolve(
+      ch === 2
+        ? [{ id: 20, chapter_id: 2, order_idx: 0, type: 'para', text: 'Second chapter.' }]
+        : [], // empty titlepage (and the whole-book preview fetch)
+    ),
+  );
+  renderReader();
+  await screen.findByRole('button', { name: 'titlepage' });
+  await userEvent.click(screen.getByRole('button', { name: 'Chapter Two' }));
+  await waitFor(
+    () => expect(api.savePosition).toHaveBeenCalledWith(7, { chapter_id: 2, block_id: 20 }),
+    { timeout: 1500 },
+  );
+});

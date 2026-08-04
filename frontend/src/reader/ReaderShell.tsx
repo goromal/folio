@@ -95,13 +95,15 @@ export function ReaderShell() {
   // when setPendingFocus(null) re-ran it, so goToBlock never fired. The save gate opens
   // only AFTER the jump lands, so the initial page-0 report can't clobber the position.
   useLayoutEffect(() => {
-    if (blocks.length === 0) return;
     if (pendingFocus) {
+      if (blocks.length === 0) return; // wait for the chapter's blocks before jumping
       const target = pendingFocus.block_id;
       paginatorRef.current?.goToBlock(target);
       setFlashBlock(target);
       setPendingFocus(null);
     }
+    // Open the save gate even when the chapter has no blocks (e.g. a titlepage): otherwise
+    // a book whose first chapter is empty never opens the gate and NOTHING ever saves.
     restoredRef.current = true;
   }, [pendingFocus, blocks]);
 
