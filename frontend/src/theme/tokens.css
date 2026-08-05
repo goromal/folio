@@ -10,6 +10,7 @@
   --hl-green: #bbf7d0;
   --hl-blue: #bfdbfe;
   --hl-pink: #fbcfe8;
+  --hl-red: #fecaca;
 }
 
 :root[data-theme='dark'] {
@@ -23,6 +24,7 @@
   --hl-green: #2f5a3a;
   --hl-blue: #274a6b;
   --hl-pink: #6b2f52;
+  --hl-red: #6b2f2f;
 }
 
 body {
@@ -36,3 +38,4 @@ body {
 ::highlight(folio-green)  { background-color: var(--hl-green); }
 ::highlight(folio-blue)   { background-color: var(--hl-blue); }
 ::highlight(folio-pink)   { background-color: var(--hl-pink); }
+::highlight(folio-red)    { background-color: var(--hl-red); }

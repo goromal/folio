@@ -1,7 +1,7 @@
 import { anchorToRange } from './anchors';
 import type { PassageDetail } from '../api/client';
 
-export const HIGHLIGHT_COLORS = ['yellow', 'green', 'blue', 'pink'] as const;
+export const HIGHLIGHT_COLORS = ['yellow', 'green', 'blue', 'pink', 'red'] as const;
 export type HighlightColor = (typeof HIGHLIGHT_COLORS)[number];
 
 /** Build a Range per passage (via its stored anchor), grouped by highlight color. */
@@ -10,7 +10,10 @@ export function groupRangesByColor(root: ParentNode, passages: PassageDetail[]):
   for (const p of passages) {
     const range = anchorToRange(root, p);
     if (!range) continue;
-    const color = p.highlights[0]?.color ?? 'yellow';
+    // Normalize to the known palette so an off-palette color (e.g. an agent-set color the
+    // reader has no ::highlight rule for) still paints instead of being invisible.
+    const raw = p.highlights[0]?.color ?? 'yellow';
+    const color = (HIGHLIGHT_COLORS as readonly string[]).includes(raw) ? raw : 'yellow';
     const list = byColor.get(color);
     if (list) list.push(range);
     else byColor.set(color, [range]);

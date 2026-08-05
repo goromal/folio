@@ -225,10 +225,14 @@ TOOLS = [
                                     "book_id": {"type": "integer"}},
                      "required": ["body"]}},
     {"name": "folio_add_highlight",
-     "description": "Add a colored highlight to a passage.",
+     "description": "Add a colored highlight to a passage. color must be one of the "
+                    "reader's palette: yellow, green, blue, pink, red (default yellow); "
+                    "other values render as yellow.",
      "inputSchema": {"type": "object",
                      "properties": {"passage_id": {"type": "integer"},
-                                    "color": {"type": "string"}},
+                                    "color": {"type": "string",
+                                              "enum": ["yellow", "green", "blue", "pink", "red"],
+                                              "default": "yellow"}},
                      "required": ["passage_id"]}},
     {"name": "folio_add_tag",
      "description": "Tag a passage.",
