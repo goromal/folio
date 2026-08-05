@@ -53,6 +53,15 @@ test('collapsed selection returns null', () => {
   expect(rangeToAnchor(range)).toBeNull();
 });
 
+test('anchorToRange clamps an out-of-bounds end_off to the block end', () => {
+  const root = mount(DOC);
+  // "The quick brown fox." is 20 chars; an agent-set end_off of 20000 means "to end".
+  const anchor: PassageAnchor = { start_block: 11, start_off: 0, end_block: 11, end_off: 20000 };
+  const range = anchorToRange(root, anchor)!;
+  expect(range).not.toBeNull();
+  expect(range.toString()).toBe('The quick brown fox.');
+});
+
 test('anchorToRange returns null for an empty block', () => {
   const root = mount(DOC);
   const anchor: PassageAnchor = { start_block: 12, start_off: 0, end_block: 12, end_off: 0 };
