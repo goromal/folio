@@ -4,6 +4,7 @@ import { ThemeControls } from './theme/ThemeControls';
 import { LibraryScreen } from './library/LibraryScreen';
 import { ReaderShell } from './reader/ReaderShell';
 import { NotesView } from './notesview/NotesView';
+import { LeaseBanner } from './lease/LeaseBanner';
 import './theme/tokens.css';
 
 export function App() {
@@ -22,7 +23,10 @@ export function App() {
           <Link to="/" style={{ fontWeight: 700, color: 'var(--fg)', textDecoration: 'none' }}>
             folio
           </Link>
-          <ThemeControls />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <LeaseBanner />
+            <ThemeControls />
+          </div>
         </header>
         <Routes>
           <Route path="/" element={<LibraryScreen />} />
