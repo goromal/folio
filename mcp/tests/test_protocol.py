@@ -10,6 +10,7 @@ EXPECTED_TOOLS = {
     "folio_delete_passage", "folio_delete_highlight", "folio_delete_tag",
     "folio_delete_note", "folio_store_summary", "folio_get_summaries",
     "folio_export_prepare", "folio_goto",
+    "folio_lease_status", "folio_lease_acquire", "folio_lease_release",
 }
 
 

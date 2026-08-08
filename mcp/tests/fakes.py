@@ -73,6 +73,16 @@ class FakeFolioClient:
     def list_book_summaries(self, book_id):
         return self._record("list_book_summaries", book_id=book_id)
 
+    # lease
+    def lease_status(self):
+        return self._record("lease_status")
+
+    def lease_acquire(self):
+        return self._record("lease_acquire")
+
+    def lease_release(self, discard=False):
+        return self._record("lease_release", discard=discard)
+
 
 class ErrorClient:
     def list_books(self):

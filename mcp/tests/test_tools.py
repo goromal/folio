@@ -119,5 +119,25 @@ class ToolDispatchTest(unittest.TestCase):
         self.assertEqual(out, {"error": "boom"})
 
 
+class LeaseToolTest(unittest.TestCase):
+    def test_lease_status(self):
+        c = FakeFolioClient(lease_status={"role": "spoke", "held": False, "holder": None})
+        out = srv.handle_tool_call(c, "folio_lease_status", {})
+        self.assertEqual(out, {"role": "spoke", "held": False, "holder": None})
+        self.assertEqual(c.calls[0], ("lease_status", {}))
+
+    def test_lease_acquire(self):
+        c = FakeFolioClient(lease_acquire={"held": True, "holder": "dell"})
+        out = srv.handle_tool_call(c, "folio_lease_acquire", {})
+        self.assertEqual(out, {"held": True, "holder": "dell"})
+        self.assertEqual(c.calls[0], ("lease_acquire", {}))
+
+    def test_lease_release(self):
+        c = FakeFolioClient(lease_release={"held": False, "holder": None})
+        out = srv.handle_tool_call(c, "folio_lease_release", {"discard": True})
+        self.assertEqual(out, {"held": False, "holder": None})
+        self.assertEqual(c.calls[0], ("lease_release", {"discard": True}))
+
+
 if __name__ == "__main__":
     unittest.main()

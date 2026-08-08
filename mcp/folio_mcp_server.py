@@ -105,6 +105,16 @@ class FolioClient:
     def list_book_summaries(self, book_id):
         return self._request("GET", f"/books/{book_id}/summaries")
 
+    # lease
+    def lease_status(self):
+        return self._request("GET", "/lease")
+
+    def lease_acquire(self):
+        return self._request("POST", "/lease/acquire")
+
+    def lease_release(self, discard=False):
+        return self._request("POST", f"/lease/release{'?discard=true' if discard else ''}")
+
 
 def export_prepare(client, book_id, chapter_id=None):
     """Compose a book's study materials into a Notion-ready {title, markdown}."""
@@ -197,6 +207,12 @@ def handle_tool_call(client, name, args):
                     raise ValueError("folio_goto requires block_id or passage_id")
                 block_id = client.get_passage(pid)["start_block"]
             return client.goto(block_id)
+        elif name == "folio_lease_status":
+            return client.lease_status()
+        elif name == "folio_lease_acquire":
+            return client.lease_acquire()
+        elif name == "folio_lease_release":
+            return client.lease_release(discard=bool(args.get("discard", False)))
         else:
             return {"error": f"Unknown tool: {name}"}
     except Exception as e:
@@ -330,6 +346,19 @@ TOOLS = [
      "inputSchema": {"type": "object",
                      "properties": {"block_id": {"type": "integer"},
                                     "passage_id": {"type": "integer"}}}},
+    {"name": "folio_lease_status",
+     "description": "Report folio lease state (whether this machine may write).",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "folio_lease_acquire",
+     "description": "Acquire the folio write lease from the hub (pulls the ground-truth "
+                    "DB). Required before creating/editing passages, notes, tags, "
+                    "highlights, or summaries.",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "folio_lease_release",
+     "description": "Release the folio write lease, writing local changes back to the "
+                    "hub. Set discard=true to release without saving.",
+     "inputSchema": {"type": "object",
+                     "properties": {"discard": {"type": "boolean"}}}},
 ]
 
 
