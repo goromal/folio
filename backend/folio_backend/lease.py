@@ -61,7 +61,8 @@ def set_holder(conn, holder):
 
 
 def validate_db(path):
-    """Raise if the file at path is not a healthy folio DB (integrity + lease row)."""
+    """Raise ValueError if the file at path is not a healthy folio DB
+    (integrity + lease row). Any sqlite-level error is normalized to ValueError."""
     conn = sqlite3.connect(path)
     try:
         status = conn.execute("PRAGMA integrity_check").fetchone()[0]
@@ -69,6 +70,8 @@ def validate_db(path):
             raise ValueError(f"integrity_check failed: {status}")
         if conn.execute("SELECT holder FROM lease WHERE id = 1").fetchone() is None:
             raise ValueError("missing lease row")
+    except sqlite3.Error as e:
+        raise ValueError(f"not a valid database: {e}")
     finally:
         conn.close()
 

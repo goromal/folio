@@ -1,16 +1,20 @@
+import asyncio
 import os
+import socket
 import sqlite3
 import tempfile
 
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from starlette.background import BackgroundTask
 
 from folio_backend import ingest, search as search_mod, store
+from folio_backend import lease as lease_mod
 from folio_backend.db import connect, init_db
 from folio_backend.models import (
     BookOut, ChapterOut, BlockOut, SearchHit,
     PassageIn, PassageOut, HighlightIn, NoteIn, NoteUpdate, TagIn,
-    LinkIn, SummaryIn, FocusIn, PositionIn, PositionOut,
+    LinkIn, SummaryIn, FocusIn, PositionIn, PositionOut, LeaseHolderIn,
 )
 from folio_backend.view import ViewState, focus_event_stream, ChangeBroadcastMiddleware
 
@@ -20,6 +24,11 @@ def create_app(db_path, static_dir=None):
     app = FastAPI(title="folio-backend")
     app.state.db_path = db_path
     app.state.view = ViewState()
+    app.state.machine = os.environ.get("FOLIO_MACHINE", socket.gethostname())
+    app.state.is_hub = os.environ.get("FOLIO_IS_HUB", "").lower() in ("1", "true", "yes")
+    app.state.dblock = asyncio.Lock()
+    machine = app.state.machine
+    is_hub = app.state.is_hub
     app.add_middleware(ChangeBroadcastMiddleware, view=app.state.view)
 
     def db():
@@ -267,5 +276,67 @@ def create_app(db_path, static_dir=None):
     def get_last_position_ep(conn=Depends(db)):
         row = store.get_last_position(conn)
         return dict(row) if row else None
+
+    # ---- hub role: lock server + DB transfer (only when FOLIO_IS_HUB) ----
+    if is_hub:
+        @app.get("/hub/lease")
+        def hub_lease_status(conn=Depends(db)):
+            return lease_mod.get_holder(conn)
+
+        @app.post("/hub/lease/acquire")
+        def hub_lease_acquire(body: LeaseHolderIn, conn=Depends(db)):
+            if lease_mod.acquire(conn, body.holder):
+                return lease_mod.get_holder(conn)
+            raise HTTPException(423, detail=lease_mod.get_holder(conn))
+
+        @app.post("/hub/lease/steal")
+        def hub_lease_steal(body: LeaseHolderIn, conn=Depends(db)):
+            lease_mod.steal(conn, body.holder)
+            return lease_mod.get_holder(conn)
+
+        @app.post("/hub/lease/release")
+        def hub_lease_release(body: LeaseHolderIn, conn=Depends(db)):
+            lease_mod.release(conn, body.holder, force=False)
+            return lease_mod.get_holder(conn)
+
+        def _require_holder(holder, conn):
+            if lease_mod.get_holder(conn)["holder"] != holder:
+                raise HTTPException(423, detail=lease_mod.get_holder(conn))
+
+        @app.get("/hub/db")
+        def hub_db_download(holder: str, conn=Depends(db)):
+            _require_holder(holder, conn)
+            snap = lease_mod.snapshot_db(app.state.db_path)
+            return FileResponse(snap, media_type="application/octet-stream",
+                                filename="folio.db",
+                                background=BackgroundTask(os.unlink, snap))
+
+        @app.post("/hub/db")
+        async def hub_db_upload(holder: str, file: UploadFile = File(...)):
+            data = await file.read()
+
+            def _apply():
+                conn = connect(app.state.db_path)
+                try:
+                    _require_holder(holder, conn)
+                finally:
+                    conn.close()
+                fd, tmp = tempfile.mkstemp(suffix=".dbup")
+                os.close(fd)
+                try:
+                    with open(tmp, "wb") as fh:
+                        fh.write(data)
+                    lease_mod.validate_db(tmp)
+                    lease_mod.swap_database(app.state.db_path, tmp)
+                finally:
+                    if os.path.exists(tmp):
+                        os.unlink(tmp)
+
+            try:
+                async with app.state.dblock:
+                    await asyncio.to_thread(_apply)
+            except ValueError as e:
+                raise HTTPException(400, f"invalid database upload: {e}")
+            return {"status": "ok"}
 
     return app

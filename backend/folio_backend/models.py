@@ -92,3 +92,7 @@ class PositionOut(BaseModel):
     chapter_id: Optional[int] = None
     block_id: Optional[int] = None
     updated_at: str
+
+
+class LeaseHolderIn(BaseModel):
+    holder: str
