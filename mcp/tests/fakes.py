@@ -45,6 +45,18 @@ class FakeFolioClient:
     def goto(self, block_id):
         return self._record("goto", block_id=block_id)
 
+    def delete_passage(self, passage_id):
+        return self._record("delete_passage", passage_id=passage_id)
+
+    def delete_highlight(self, highlight_id):
+        return self._record("delete_highlight", highlight_id=highlight_id)
+
+    def delete_tag(self, passage_id, tag_id):
+        return self._record("delete_tag", passage_id=passage_id, tag_id=tag_id)
+
+    def delete_note(self, note_id):
+        return self._record("delete_note", note_id=note_id)
+
     # higher-order (used by later tasks' tests)
     def store_summary(self, scope, scope_id, body):
         return self._record("store_summary", scope=scope, scope_id=scope_id, body=body)

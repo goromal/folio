@@ -72,6 +72,19 @@ class FolioClient:
     def goto(self, block_id):
         return self._request("POST", "/view/focus", {"block_id": block_id})
 
+    # delete / cleanup
+    def delete_passage(self, passage_id):
+        return self._request("DELETE", f"/passages/{passage_id}")
+
+    def delete_highlight(self, highlight_id):
+        return self._request("DELETE", f"/highlights/{highlight_id}")
+
+    def delete_tag(self, passage_id, tag_id):
+        return self._request("DELETE", f"/passages/{passage_id}/tags/{tag_id}")
+
+    def delete_note(self, note_id):
+        return self._request("DELETE", f"/notes/{note_id}")
+
     # higher-order / lists
     def store_summary(self, scope, scope_id, body):
         return self._request("POST", "/summaries", {
@@ -138,6 +151,8 @@ def handle_tool_call(client, name, args):
         elif name == "folio_get_section_text":
             blocks = client.get_blocks(args["book_id"], args.get("chapter_id"))
             return {"text": "\n\n".join(b["text"] for b in blocks)}
+        elif name == "folio_get_blocks":
+            return client.get_blocks(args["book_id"], args.get("chapter_id"))
         elif name == "folio_search":
             return client.search(args["book_id"], args["query"],
                                  args.get("limit", 20))
@@ -156,6 +171,15 @@ def handle_tool_call(client, name, args):
                                         color=args.get("color", "yellow"))
         elif name == "folio_add_tag":
             return client.add_tag(args["passage_id"], args["name"])
+        elif name == "folio_delete_passage":
+            return client.delete_passage(args["passage_id"]) or {"deleted": True}
+        elif name == "folio_delete_highlight":
+            return client.delete_highlight(args["highlight_id"]) or {"deleted": True}
+        elif name == "folio_delete_tag":
+            return client.delete_tag(args["passage_id"], args["tag_id"]) \
+                or {"deleted": True}
+        elif name == "folio_delete_note":
+            return client.delete_note(args["note_id"]) or {"deleted": True}
         elif name == "folio_link_passages":
             return client.link_passages(args["from_passage"], args["to_passage"],
                                         note=args.get("note"))
@@ -194,8 +218,19 @@ TOOLS = [
                      "properties": {"book_id": {"type": "integer"},
                                     "chapter_id": {"type": "integer"}},
                      "required": ["book_id"]}},
+    {"name": "folio_get_blocks",
+     "description": "Get a book or chapter as a list of blocks, each with its "
+                    "block_id (plus chapter_id and text). Use this to resolve the "
+                    "block_id that folio_create_passage needs: folio_get_section_text "
+                    "returns the same text but drops the ids.",
+     "inputSchema": {"type": "object",
+                     "properties": {"book_id": {"type": "integer"},
+                                    "chapter_id": {"type": "integer"}},
+                     "required": ["book_id"]}},
     {"name": "folio_search",
-     "description": "Keyword-search a book's text (FTS5); returns ranked block hits.",
+     "description": "Keyword-search a book's text (FTS5, AND semantics: prefer single "
+                    "distinctive keywords — multi-word phrases often match nothing). "
+                    "Returns ranked block hits.",
      "inputSchema": {"type": "object",
                      "properties": {"book_id": {"type": "integer"},
                                     "query": {"type": "string"},
@@ -240,6 +275,28 @@ TOOLS = [
                      "properties": {"passage_id": {"type": "integer"},
                                     "name": {"type": "string"}},
                      "required": ["passage_id", "name"]}},
+    {"name": "folio_delete_passage",
+     "description": "Delete a passage and its highlights, tags, and notes. Use this to "
+                    "remove a passage created in error.",
+     "inputSchema": {"type": "object",
+                     "properties": {"passage_id": {"type": "integer"}},
+                     "required": ["passage_id"]}},
+    {"name": "folio_delete_highlight",
+     "description": "Remove a single highlight by its id (leaves the passage intact).",
+     "inputSchema": {"type": "object",
+                     "properties": {"highlight_id": {"type": "integer"}},
+                     "required": ["highlight_id"]}},
+    {"name": "folio_delete_tag",
+     "description": "Remove a tag from a passage (by passage_id and tag_id).",
+     "inputSchema": {"type": "object",
+                     "properties": {"passage_id": {"type": "integer"},
+                                    "tag_id": {"type": "integer"}},
+                     "required": ["passage_id", "tag_id"]}},
+    {"name": "folio_delete_note",
+     "description": "Delete a note by its id.",
+     "inputSchema": {"type": "object",
+                     "properties": {"note_id": {"type": "integer"}},
+                     "required": ["note_id"]}},
     {"name": "folio_link_passages",
      "description": "Link one passage to another, with an optional note.",
      "inputSchema": {"type": "object",

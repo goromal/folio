@@ -23,6 +23,35 @@ class ToolDispatchTest(unittest.TestCase):
         self.assertEqual(out, {"text": "one\n\ntwo"})
         self.assertEqual(c.calls[0], ("get_blocks", {"book_id": 1, "chapter_id": 2}))
 
+    def test_get_blocks_returns_blocks_with_ids(self):
+        blocks = [{"id": 10, "text": "one"}, {"id": 11, "text": "two"}]
+        c = FakeFolioClient(get_blocks=blocks)
+        out = srv.handle_tool_call(
+            c, "folio_get_blocks", {"book_id": 1, "chapter_id": 2})
+        self.assertEqual(out, blocks)
+        self.assertEqual(c.calls[0], ("get_blocks", {"book_id": 1, "chapter_id": 2}))
+
+    def test_delete_passage(self):
+        c = FakeFolioClient(delete_passage=None)
+        out = srv.handle_tool_call(c, "folio_delete_passage", {"passage_id": 3})
+        self.assertEqual(out, {"deleted": True})
+        self.assertEqual(c.calls[0], ("delete_passage", {"passage_id": 3}))
+
+    def test_delete_highlight(self):
+        c = FakeFolioClient(delete_highlight=None)
+        srv.handle_tool_call(c, "folio_delete_highlight", {"highlight_id": 9})
+        self.assertEqual(c.calls[0], ("delete_highlight", {"highlight_id": 9}))
+
+    def test_delete_tag(self):
+        c = FakeFolioClient(delete_tag=None)
+        srv.handle_tool_call(c, "folio_delete_tag", {"passage_id": 3, "tag_id": 2})
+        self.assertEqual(c.calls[0], ("delete_tag", {"passage_id": 3, "tag_id": 2}))
+
+    def test_delete_note(self):
+        c = FakeFolioClient(delete_note=None)
+        srv.handle_tool_call(c, "folio_delete_note", {"note_id": 4})
+        self.assertEqual(c.calls[0], ("delete_note", {"note_id": 4}))
+
     def test_search(self):
         c = FakeFolioClient()
         srv.handle_tool_call(c, "folio_search",
