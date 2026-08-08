@@ -10,6 +10,8 @@ import sqlite3
 import tempfile
 from datetime import datetime, timezone
 
+from starlette.responses import JSONResponse
+
 from folio_backend.db import connect
 
 
@@ -125,3 +127,48 @@ def hub_base_url():
     ip = resolve_host(host)
     port = os.environ.get("FOLIO_HUB_PORT", "")
     return f"https://{ip}:{port}" if port else f"https://{ip}"
+
+
+_MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
+_ALWAYS_ALLOWED_PREFIXES = ("/lease", "/hub", "/view/focus")
+
+
+def _write_allowed_path(path):
+    """True if a mutating request to path bypasses lease enforcement."""
+    for p in _ALWAYS_ALLOWED_PREFIXES:
+        if path == p or path.startswith(p + "/"):
+            return True
+    # saving the reading position: PUT /books/<id>/position
+    return path.startswith("/books/") and path.endswith("/position")
+
+
+class LeaseEnforcementMiddleware:
+    """Reject content-mutating requests with 423 unless this machine holds the lease.
+
+    Raw ASGI (not Starlette's BaseHTTPMiddleware, mirroring ChangeBroadcastMiddleware)
+    so streaming responses (/view/stream SSE, /hub/db download) pass through unbuffered.
+    """
+
+    def __init__(self, app, db_path, machine):
+        self.app = app
+        self.db_path = db_path
+        self.machine = machine
+
+    async def __call__(self, scope, receive, send):
+        if (
+            scope["type"] == "http"
+            and scope["method"] in _MUTATING
+            and not _write_allowed_path(scope["path"])
+        ):
+            conn = connect(self.db_path)
+            try:
+                holder = get_holder(conn)["holder"]
+            finally:
+                conn.close()
+            if holder != self.machine:
+                response = JSONResponse(
+                    status_code=423,
+                    content={"detail": f"read-only: lease held by {holder}", "holder": holder})
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)

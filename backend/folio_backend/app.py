@@ -12,6 +12,7 @@ from starlette.background import BackgroundTask
 
 from folio_backend import ingest, search as search_mod, store
 from folio_backend import lease as lease_mod
+from folio_backend.lease import LeaseEnforcementMiddleware
 from folio_backend.db import connect, init_db
 from folio_backend.models import (
     BookOut, ChapterOut, BlockOut, SearchHit,
@@ -32,6 +33,9 @@ def create_app(db_path, static_dir=None):
     machine = app.state.machine
     is_hub = app.state.is_hub
     app.add_middleware(ChangeBroadcastMiddleware, view=app.state.view)
+    enforce = is_hub or bool(os.environ.get("FOLIO_HUB_HOST"))
+    if enforce:
+        app.add_middleware(LeaseEnforcementMiddleware, db_path=db_path, machine=machine)
 
     def db():
         conn = connect(db_path)
