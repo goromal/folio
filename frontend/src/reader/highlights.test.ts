@@ -33,6 +33,19 @@ test('defaults to yellow when a passage has no highlight row', () => {
   expect(map.has('yellow')).toBe(true);
 });
 
+test('groups a red highlight under red (red is in the palette)', () => {
+  const root = mount(DOC);
+  const map = groupRangesByColor(root, [passage({ highlights: [{ id: 1, color: 'red' }] })]);
+  expect(map.get('red')!.length).toBe(1);
+});
+
+test('normalizes an off-palette color to yellow so it still paints', () => {
+  const root = mount(DOC);
+  const map = groupRangesByColor(root, [passage({ highlights: [{ id: 1, color: 'chartreuse' }] })]);
+  expect(map.has('chartreuse')).toBe(false);
+  expect(map.get('yellow')!.length).toBe(1);
+});
+
 test('skips passages whose anchor cannot be resolved', () => {
   const root = mount(DOC);
   const map = groupRangesByColor(root, [passage({ start_block: 999, end_block: 999 })]);

@@ -38,6 +38,14 @@ export interface Position {
   updated_at: string;
 }
 
+export interface LeaseState {
+  role: 'hub' | 'spoke';
+  held: boolean;
+  holder: string | null;
+  hubHolder?: string | null;
+  hubError?: string;
+}
+
 export interface PassageAnchorInput {
   book_id: number;
   start_block: number;
@@ -50,8 +58,16 @@ export interface PassageAnchorInput {
 // host:port (browser and Electron alike), so relative paths resolve correctly.
 const BASE = '';
 
+// Dispatched on window when the backend rejects a write with 423 (read-only:
+// this machine doesn't hold the lease). LeaseBanner listens to refresh its state.
+export const LOCKED_EVENT = 'folio:locked';
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, init);
+  if (res.status === 423) {
+    window.dispatchEvent(new CustomEvent(LOCKED_EVENT));
+    throw new Error('read-only: acquire the lease to edit');
+  }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -106,6 +122,13 @@ export const api = {
   getLastPosition: () => req<Position | null>('/position'),
   savePosition: (bookId: number, body: { chapter_id: number | null; block_id: number | null }) =>
     req<Position>(`/books/${bookId}/position`, jsonInit('PUT', body)),
+  getLease: () => req<LeaseState>('/lease'),
+  acquireLease: () => req<{ held: boolean; holder: string | null }>('/lease/acquire', { method: 'POST' }),
+  releaseLease: (discard = false) =>
+    req<{ held: boolean; holder: string | null }>(
+      `/lease/release${discard ? '?discard=true' : ''}`,
+      { method: 'POST' },
+    ),
 };
 
 export interface Focus {

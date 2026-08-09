@@ -1,16 +1,23 @@
+import asyncio
 import os
+import socket
 import sqlite3
 import tempfile
 
+import httpx
+
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from starlette.background import BackgroundTask
 
 from folio_backend import ingest, search as search_mod, store
+from folio_backend import lease as lease_mod
+from folio_backend.lease import LeaseEnforcementMiddleware
 from folio_backend.db import connect, init_db
 from folio_backend.models import (
     BookOut, ChapterOut, BlockOut, SearchHit,
     PassageIn, PassageOut, HighlightIn, NoteIn, NoteUpdate, TagIn,
-    LinkIn, SummaryIn, FocusIn, PositionIn, PositionOut,
+    LinkIn, SummaryIn, FocusIn, PositionIn, PositionOut, LeaseHolderIn,
 )
 from folio_backend.view import ViewState, focus_event_stream, ChangeBroadcastMiddleware
 
@@ -20,7 +27,15 @@ def create_app(db_path, static_dir=None):
     app = FastAPI(title="folio-backend")
     app.state.db_path = db_path
     app.state.view = ViewState()
+    app.state.machine = os.environ.get("FOLIO_MACHINE", socket.gethostname())
+    app.state.is_hub = os.environ.get("FOLIO_IS_HUB", "").lower() in ("1", "true", "yes")
+    app.state.dblock = asyncio.Lock()
+    machine = app.state.machine
+    is_hub = app.state.is_hub
     app.add_middleware(ChangeBroadcastMiddleware, view=app.state.view)
+    enforce = is_hub or bool(os.environ.get("FOLIO_HUB_HOST"))
+    if enforce:
+        app.add_middleware(LeaseEnforcementMiddleware, db_path=db_path, machine=machine)
 
     def db():
         conn = connect(db_path)
@@ -267,5 +282,143 @@ def create_app(db_path, static_dir=None):
     def get_last_position_ep(conn=Depends(db)):
         row = store.get_last_position(conn)
         return dict(row) if row else None
+
+    # ---- hub role: lock server + DB transfer (only when FOLIO_IS_HUB) ----
+    if is_hub:
+        @app.get("/hub/lease")
+        def hub_lease_status(conn=Depends(db)):
+            return lease_mod.get_holder(conn)
+
+        @app.post("/hub/lease/acquire")
+        def hub_lease_acquire(body: LeaseHolderIn, conn=Depends(db)):
+            if lease_mod.acquire(conn, body.holder):
+                return lease_mod.get_holder(conn)
+            raise HTTPException(423, detail=lease_mod.get_holder(conn))
+
+        @app.post("/hub/lease/steal")
+        def hub_lease_steal(body: LeaseHolderIn, conn=Depends(db)):
+            lease_mod.steal(conn, body.holder)
+            return lease_mod.get_holder(conn)
+
+        @app.post("/hub/lease/release")
+        def hub_lease_release(body: LeaseHolderIn, conn=Depends(db)):
+            lease_mod.release(conn, body.holder, force=False)
+            return lease_mod.get_holder(conn)
+
+        def _require_holder(holder, conn):
+            if lease_mod.get_holder(conn)["holder"] != holder:
+                raise HTTPException(423, detail=lease_mod.get_holder(conn))
+
+        @app.get("/hub/db")
+        def hub_db_download(holder: str, conn=Depends(db)):
+            _require_holder(holder, conn)
+            snap = lease_mod.snapshot_db(app.state.db_path)
+            return FileResponse(snap, media_type="application/octet-stream",
+                                filename="folio.db",
+                                background=BackgroundTask(os.unlink, snap))
+
+        @app.post("/hub/db")
+        async def hub_db_upload(holder: str, file: UploadFile = File(...)):
+            data = await file.read()
+
+            def _apply():
+                conn = connect(app.state.db_path)
+                try:
+                    _require_holder(holder, conn)
+                finally:
+                    conn.close()
+                fd, tmp = tempfile.mkstemp(suffix=".dbup")
+                os.close(fd)
+                try:
+                    with open(tmp, "wb") as fh:
+                        fh.write(data)
+                    lease_mod.validate_db(tmp)
+                    lease_mod.swap_database(app.state.db_path, tmp)
+                finally:
+                    if os.path.exists(tmp):
+                        os.unlink(tmp)
+
+            try:
+                async with app.state.dblock:
+                    await asyncio.to_thread(_apply)
+            except ValueError as e:
+                raise HTTPException(400, f"invalid database upload: {e}")
+            return {"status": "ok"}
+
+    # ---- local lease orchestration (all machines) ----
+    @app.get("/lease")
+    def lease_status(conn=Depends(db)):
+        local = lease_mod.get_holder(conn)
+        result = {
+            "role": "hub" if is_hub else "spoke",
+            "held": local["holder"] == machine,
+            "holder": local["holder"],
+        }
+        if not is_hub:
+            base = lease_mod.hub_base_url()
+            if base:
+                try:
+                    r = httpx.get(f"{base}/hub/lease", verify=False, timeout=10)
+                    result["hubHolder"] = r.json().get("holder")
+                except Exception as e:  # hub unreachable -> report, don't crash
+                    result["hubError"] = str(e)
+        return result
+
+    @app.post("/lease/acquire")
+    def lease_acquire(conn=Depends(db)):
+        if is_hub:
+            if lease_mod.acquire(conn, machine):
+                return {"held": True, "holder": machine}
+            raise HTTPException(423, detail=lease_mod.get_holder(conn))
+        base = lease_mod.hub_base_url()
+        if not base:
+            raise HTTPException(400, "no hub configured (FOLIO_HUB_HOST unset)")
+        r = httpx.post(f"{base}/hub/lease/acquire", json={"holder": machine},
+                       verify=False, timeout=10)
+        if r.status_code == 423:
+            raise HTTPException(423, detail=r.json().get("detail"))
+        r.raise_for_status()
+        dl = httpx.get(f"{base}/hub/db", params={"holder": machine}, verify=False, timeout=120)
+        dl.raise_for_status()
+        fd, tmp = tempfile.mkstemp(suffix=".dbdl")
+        os.close(fd)
+        try:
+            with open(tmp, "wb") as fh:
+                fh.write(dl.content)
+            lease_mod.validate_db(tmp)
+            lease_mod.swap_database(app.state.db_path, tmp)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+        return {"held": True, "holder": machine}
+
+    @app.post("/lease/release")
+    def lease_release(discard: bool = False, conn=Depends(db)):
+        if is_hub:
+            lease_mod.release(conn, machine, force=False)
+            return {"held": False, "holder": None}
+        base = lease_mod.hub_base_url()
+        if not base:
+            raise HTTPException(400, "no hub configured (FOLIO_HUB_HOST unset)")
+        if discard:
+            httpx.post(f"{base}/hub/lease/release", json={"holder": machine},
+                       verify=False, timeout=10).raise_for_status()
+            return {"held": False, "holder": None}
+        # write-back: free the local row, snapshot, upload; restore local on failure.
+        snap = None
+        try:
+            lease_mod.set_holder(conn, None)
+            snap = lease_mod.snapshot_db(app.state.db_path)
+            with open(snap, "rb") as fh:
+                httpx.post(f"{base}/hub/db", params={"holder": machine},
+                           files={"file": ("folio.db", fh, "application/octet-stream")},
+                           verify=False, timeout=120).raise_for_status()
+        except Exception:
+            lease_mod.set_holder(conn, machine)  # roll back; keep editing locally
+            raise
+        finally:
+            if snap and os.path.exists(snap):
+                os.unlink(snap)
+        return {"held": False, "holder": None}
 
     return app

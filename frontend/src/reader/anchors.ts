@@ -46,18 +46,23 @@ export function rangeToAnchor(range: Range): PassageAnchor | null {
   return { start_block: start.block, start_off: start.off, end_block: end.block, end_off: end.off };
 }
 
-/** Find the text node + in-node offset for character index `charOff` in `blockEl`. */
+/** Find the text node + in-node offset for character index `charOff` in `blockEl`.
+ * An offset past the block's end clamps to the end of the last text node, so an
+ * out-of-bounds anchor (e.g. an agent using a large end_off to mean "to end of block")
+ * still resolves instead of dropping the whole highlight. */
 function textPoint(blockEl: Element, charOff: number): { node: Node; offset: number } | null {
   const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
-  let remaining = charOff;
   const first = walker.nextNode();
   if (!first) return null; // empty block — nothing to attach to
+  let remaining = charOff;
+  let last: Node = first;
   for (let n: Node | null = first; n; n = walker.nextNode()) {
+    last = n;
     const len = (n.textContent ?? '').length;
     if (remaining <= len) return { node: n, offset: remaining };
     remaining -= len;
   }
-  return null;
+  return { node: last, offset: (last.textContent ?? '').length };
 }
 
 /** Rebuild a Range for a stored anchor within `root`. Returns null if unresolvable. */

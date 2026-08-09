@@ -112,3 +112,20 @@ test('reloads on a changed event (live sync)', async () => {
     expect((api.listPassages as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(before),
   );
 });
+
+test('chapter summary heading links to the chapter start in the reader', async () => {
+  renderNotes();
+  const link = await screen.findByRole('link', { name: /Chapter: Chapter One/ });
+  expect(link).toHaveAttribute('href', '/book/7?focus=10&ch=1');
+});
+
+test('a chapter with no blocks renders a plain heading (no link) and the book summary is never a link', async () => {
+  (api.getBlocks as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  renderNotes();
+  // Book-summary heading is present...
+  await screen.findByText('Book summary');
+  // ...and with no blocks, the chapter summary heading is plain text, not a link.
+  await screen.findByText('Chapter: Chapter One');
+  expect(screen.queryByRole('link', { name: /Chapter: Chapter One/ })).toBeNull();
+  expect(screen.queryByRole('link', { name: /Book summary/ })).toBeNull();
+});

@@ -100,3 +100,13 @@ CREATE TABLE IF NOT EXISTS reading_position (
     block_id   INTEGER              REFERENCES blocks(id)   ON DELETE SET NULL,
     updated_at TEXT NOT NULL
 );
+
+-- Whole-database lease: the single writability rule. holder = the machine name
+-- allowed to write; NULL = free (read-only everywhere). The row travels with the
+-- DB when it is copied between hub and spokes, so enforcement is identical on both.
+CREATE TABLE IF NOT EXISTS lease (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  holder      TEXT,
+  acquired_at TEXT
+);
+INSERT OR IGNORE INTO lease (id, holder, acquired_at) VALUES (1, NULL, NULL);

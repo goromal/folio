@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   api,
@@ -75,6 +75,10 @@ export function NotesView() {
     (p: PassageDetail) => passageText(blocks, p).slice(0, 100) || `passage ${p.id}`,
     [blocks],
   );
+  const firstBlockOf = useCallback(
+    (chapterId: number) => blocks.find((b) => b.chapter_id === chapterId)?.id ?? null,
+    [blocks],
+  );
 
   const allTags = useMemo(() => {
     const s = new Set<string>();
@@ -121,14 +125,24 @@ export function NotesView() {
           summaries={summaries.filter((s) => s.scope === 'book' && s.scope_id === id)}
           onSave={(body) => saveSummary('book', id, body)}
         />
-        {chapters.map((c) => (
-          <SummaryEditor
-            key={c.id}
-            label={`Chapter: ${c.title}`}
-            summaries={summaries.filter((s) => s.scope === 'chapter' && s.scope_id === c.id)}
-            onSave={(body) => saveSummary('chapter', c.id, body)}
-          />
-        ))}
+        {chapters.map((c) => {
+          const fb = firstBlockOf(c.id);
+          const text = `Chapter: ${c.title}`;
+          const label =
+            fb != null ? (
+              <RouterLink to={`/book/${id}?focus=${fb}&ch=${c.id}`}>{text}</RouterLink>
+            ) : (
+              text
+            );
+          return (
+            <SummaryEditor
+              key={c.id}
+              label={label}
+              summaries={summaries.filter((s) => s.scope === 'chapter' && s.scope_id === c.id)}
+              onSave={(body) => saveSummary('chapter', c.id, body)}
+            />
+          );
+        })}
       </section>
 
       <section>
@@ -192,10 +206,11 @@ function SummaryEditor({
   summaries,
   onSave,
 }: {
-  label: string;
+  label: ReactNode;
   summaries: Summary[];
   onSave: (body: string) => Promise<boolean>;
 }) {
+  const headingId = useId();
   const mine = summaries.find((s) => s.generated_by === 'user');
   const agent = summaries.filter((s) => s.generated_by !== 'user');
   const [body, setBody] = useState(mine?.body ?? '');
@@ -207,9 +222,9 @@ function SummaryEditor({
   }, [mine?.body]);
   return (
     <div className={styles.summary}>
-      <h3 className={styles.summaryLabel}>{label}</h3>
+      <h3 id={headingId} className={styles.summaryLabel}>{label}</h3>
       <textarea
-        aria-label={label}
+        aria-labelledby={headingId}
         className={styles.summaryText}
         value={body}
         onChange={(e) => {

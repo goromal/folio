@@ -4,11 +4,13 @@ import folio_mcp_server as srv
 from tests.fakes import FakeFolioClient
 
 EXPECTED_TOOLS = {
-    "folio_list_books", "folio_get_toc", "folio_get_section_text", "folio_search",
-    "folio_get_passage", "folio_create_passage", "folio_add_note",
+    "folio_list_books", "folio_get_toc", "folio_get_section_text", "folio_get_blocks",
+    "folio_search", "folio_get_passage", "folio_create_passage", "folio_add_note",
     "folio_add_highlight", "folio_add_tag", "folio_link_passages",
-    "folio_store_summary", "folio_get_summaries", "folio_export_prepare",
-    "folio_goto",
+    "folio_delete_passage", "folio_delete_highlight", "folio_delete_tag",
+    "folio_delete_note", "folio_store_summary", "folio_get_summaries",
+    "folio_export_prepare", "folio_goto",
+    "folio_lease_status", "folio_lease_acquire", "folio_lease_release",
 }
 
 
