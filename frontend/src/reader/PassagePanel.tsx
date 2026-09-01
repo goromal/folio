@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Link, PassageDetail } from '../api/client';
+import { Markdown } from '../markdown/Markdown';
 import styles from './PassagePanel.module.css';
 
 export function PassagePanel({
@@ -71,7 +72,7 @@ export function PassagePanel({
               </li>
             ) : (
               <li key={n.id} className={styles.note}>
-                <span className={styles.noteBody}>{n.body}</span>
+                <Markdown className={styles.noteBody}>{n.body}</Markdown>
                 <button
                   aria-label="Edit note"
                   className={styles.noteEdit}
