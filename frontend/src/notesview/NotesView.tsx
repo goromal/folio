@@ -10,6 +10,7 @@ import {
   type Summary,
 } from '../api/client';
 import { passageText } from '../reader/passageText';
+import { Markdown } from '../markdown/Markdown';
 import styles from './NotesView.module.css';
 
 export function NotesView() {
@@ -183,9 +184,9 @@ export function NotesView() {
                 ))}
               </div>
               {p.notes.map((n) => (
-                <p key={n.id} className={styles.note}>
+                <Markdown key={n.id} className={styles.note}>
                   {n.body}
-                </p>
+                </Markdown>
               ))}
               {(linksBy[p.id] ?? []).length > 0 && (
                 <p className={styles.linkline}>{(linksBy[p.id] ?? []).length} link(s)</p>
@@ -248,9 +249,10 @@ function SummaryEditor({
         )}
       </div>
       {agent.map((s) => (
-        <p key={s.id} className={styles.agentSummary}>
-          <span className={styles.badge}>agent</span> {s.body}
-        </p>
+        <div key={s.id} className={styles.agentSummary}>
+          <span className={styles.badge}>agent</span>
+          <Markdown>{s.body}</Markdown>
+        </div>
       ))}
     </div>
   );
