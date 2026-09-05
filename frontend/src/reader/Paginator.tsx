@@ -1,8 +1,9 @@
 import {
   forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect,
-  useRef, useState, type ReactNode,
+  useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent,
 } from 'react';
 import { computePageCount, clampPage, translateXFor, topVisibleBlock } from './pagination';
+import { swipePageDelta, swipeThreshold } from './swipe';
 import styles from './Paginator.module.css';
 
 export interface PaginatorHandle {
@@ -98,6 +99,39 @@ export const Paginator = forwardRef<
     [pageCount],
   );
 
+  // Touch paging: remember where a one-finger gesture started, then decide at
+  // touchend. Multi-touch (pinch-zoom) is ignored outright.
+  const touchStart = useRef<{ x: number; y: number; t: number } | null>(null);
+
+  const onTouchStart = useCallback((e: ReactTouchEvent<HTMLDivElement>) => {
+    const t = e.touches.length === 1 ? e.touches[0] : null;
+    touchStart.current = t ? { x: t.clientX, y: t.clientY, t: Date.now() } : null;
+  }, []);
+
+  const onTouchEnd = useCallback(
+    (e: ReactTouchEvent<HTMLDivElement>) => {
+      const start = touchStart.current;
+      touchStart.current = null;
+      const end = e.changedTouches[0];
+      if (!start || !end) return;
+      // A live selection means the finger was dragging a text selection (to highlight
+      // or annotate), not turning a page. Selection always wins.
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && !sel.isCollapsed) return;
+      const delta = swipePageDelta(
+        { dx: end.clientX - start.x, dy: end.clientY - start.y, dt: Date.now() - start.t },
+        { minDistance: swipeThreshold(viewportRef.current?.clientWidth ?? 0) },
+      );
+      if (delta === 0) return;
+      // Suppress the synthesized click that would otherwise land wherever the finger
+      // lifted — on a painted highlight that would pop the passage panel open mid-swipe.
+      // (React leaves touchend non-passive, so preventDefault still applies here.)
+      e.preventDefault();
+      go(delta);
+    },
+    [go],
+  );
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'ArrowRight') go(1);
@@ -137,7 +171,13 @@ export const Paginator = forwardRef<
       <button className={styles.zone} aria-label="Previous page" onClick={() => go(-1)}>
         ‹
       </button>
-      <div className={styles.viewport} ref={viewportRef}>
+      <div
+        className={styles.viewport}
+        ref={viewportRef}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={() => { touchStart.current = null; }}
+      >
         <div
           className={styles.flow}
           data-folio-flow=""

@@ -1,5 +1,7 @@
 .pager { display: grid; grid-template-columns: auto 1fr auto; align-items: stretch; gap: 0.25rem; height: 100%; }
-.viewport { overflow: hidden; height: 100%; }
+/* touch-action: pan-y keeps vertical scrolling native while reserving horizontal
+   gestures for our swipe handler (and blocking the browser's swipe-to-go-back). */
+.viewport { overflow: hidden; height: 100%; touch-action: pan-y; }
 .flow {
   /* column-count is set inline from the measured width (see Paginator.tsx). */
   height: 100%;

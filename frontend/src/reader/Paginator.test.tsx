@@ -1,8 +1,14 @@
 import { createRef } from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
 import { Paginator, type PaginatorHandle } from './Paginator';
+
+/** Drag one finger across the viewport from (x0,y0) to (x1,y1). */
+function swipe(vp: Element, x0: number, y0: number, x1: number, y1: number) {
+  fireEvent.touchStart(vp, { touches: [{ clientX: x0, clientY: y0 }] });
+  fireEvent.touchEnd(vp, { changedTouches: [{ clientX: x1, clientY: y1 }] });
+}
 
 test('renders children inside the flow root', () => {
   const { container } = render(
@@ -35,6 +41,37 @@ test('exposes a goToBlock handle that is safe in jsdom', () => {
   );
   expect(ref.current).not.toBeNull();
   expect(() => ref.current!.goToBlock(1)).not.toThrow();
+});
+
+test('swiping across the viewport turns pages', () => {
+  // jsdom reports zero layout, so pageCount collapses to 1 and no page can turn.
+  // Stub a 400px-wide viewport over 1200px of content -> three pages.
+  const sizes = { clientWidth: 400, scrollWidth: 1200 };
+  for (const [prop, value] of Object.entries(sizes)) {
+    Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, value });
+  }
+  try {
+    const { container } = render(
+      <Paginator resetKey={1}>
+        <p data-block-id="1" data-block-type="para">hello</p>
+      </Paginator>,
+    );
+    const vp = container.querySelector('[data-folio-flow]')!.parentElement!;
+    expect(screen.getByText('1 / 3')).toBeInTheDocument();
+
+    swipe(vp, 300, 100, 100, 110); // leftward -> next page
+    expect(screen.getByText('2 / 3')).toBeInTheDocument();
+
+    swipe(vp, 100, 100, 300, 110); // rightward -> previous page
+    expect(screen.getByText('1 / 3')).toBeInTheDocument();
+
+    swipe(vp, 300, 100, 280, 300); // short and mostly vertical -> not a page turn
+    expect(screen.getByText('1 / 3')).toBeInTheDocument();
+  } finally {
+    for (const prop of Object.keys(sizes)) {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>)[prop];
+    }
+  }
 });
 
 test('does not report a page block on initial render (only user page turns report)', () => {
