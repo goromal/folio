@@ -21,8 +21,8 @@ test('a slow drag (text selection) is not a swipe', () => {
 });
 
 test('threshold scales with width and stays within bounds', () => {
-  expect(swipeThreshold(600)).toBe(90);
+  expect(swipeThreshold(400)).toBe(60); // mid-range: 15% of the width
   expect(swipeThreshold(100)).toBe(40); // narrow viewport -> floor
-  expect(swipeThreshold(2000)).toBe(120); // wide viewport -> ceiling
+  expect(swipeThreshold(2000)).toBe(80); // wide viewport -> ceiling
   expect(swipeThreshold(0)).toBe(40); // unmeasured (jsdom)
 });
