@@ -10,6 +10,7 @@ import { useSelectionAnchor } from './useSelectionAnchor';
 import { paintHighlights } from './highlights';
 import { anchorToRange, type PassageAnchor } from './anchors';
 import { passageText } from './passageText';
+import { useTheme } from '../theme/ThemeProvider';
 import type { HighlightColor } from './highlights';
 import styles from './ReaderShell.module.css';
 
@@ -33,6 +34,7 @@ export function ReaderShell() {
 
   const flowRef = useRef<HTMLDivElement>(null);
   const selection = useSelectionAnchor(flowRef);
+  const { fontSize } = useTheme(); // a text-size change has to re-paginate
 
   const navigate = useNavigate();
   const paginatorRef = useRef<PaginatorHandle>(null);
@@ -284,7 +286,12 @@ export function ReaderShell() {
         </div>
         {error && <p role="alert">{error}</p>}
         <div ref={flowRef} onClick={onFlowClick} style={{ height: '70vh' }}>
-          <Paginator ref={paginatorRef} resetKey={activeChapter} onPageBlock={savePosition}>
+          <Paginator
+            ref={paginatorRef}
+            resetKey={activeChapter}
+            onPageBlock={savePosition}
+            fontSize={fontSize}
+          >
             <BlockList blocks={blocks} flashBlockId={flashBlock} />
           </Paginator>
         </div>

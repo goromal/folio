@@ -4,7 +4,22 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { ReaderShell } from './ReaderShell';
 import { api, subscribeEvents } from '../api/client';
+import { ThemeProvider } from '../theme/ThemeProvider';
 import type { ReactNode } from 'react';
+
+/** The reader reads its text size from ThemeProvider (a resize re-paginates), so
+ * every render site needs the provider around it. */
+function inApp(entries: string[]) {
+  return (
+    <ThemeProvider>
+      <MemoryRouter initialEntries={entries}>
+        <Routes>
+          <Route path="/book/:bookId" element={<ReaderShell />} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>
+  );
+}
 
 const navigate = vi.fn();
 vi.mock('react-router-dom', async (orig) => ({
@@ -56,13 +71,7 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 function renderReader() {
-  return render(
-    <MemoryRouter initialEntries={['/book/7']}>
-      <Routes>
-        <Route path="/book/:bookId" element={<ReaderShell />} />
-      </Routes>
-    </MemoryRouter>,
-  );
+  return render(inApp(['/book/7']));
 }
 
 test('loads TOC, blocks, and passages', async () => {
@@ -109,13 +118,7 @@ test('the table of contents can be collapsed and reopened', async () => {
 });
 
 test('a ?focus deep link loads the target chapter', async () => {
-  const { container } = render(
-    <MemoryRouter initialEntries={['/book/7?focus=20&ch=2']}>
-      <Routes>
-        <Route path="/book/:bookId" element={<ReaderShell />} />
-      </Routes>
-    </MemoryRouter>,
-  );
+  const { container } = render(inApp(['/book/7?focus=20&ch=2']));
   await waitFor(() => expect(api.getBlocks).toHaveBeenCalledWith(7, 2));
   await waitFor(() =>
     expect(container.querySelector('[data-block-id="20"]')).toBeInTheDocument(),
@@ -147,13 +150,7 @@ test('?focus wins over a saved position', async () => {
   (api.getPosition as ReturnType<typeof vi.fn>).mockResolvedValue({
     book_id: 7, chapter_id: 1, block_id: 10, updated_at: 't',
   });
-  render(
-    <MemoryRouter initialEntries={['/book/7?focus=20&ch=2']}>
-      <Routes>
-        <Route path="/book/:bookId" element={<ReaderShell />} />
-      </Routes>
-    </MemoryRouter>,
-  );
+  render(inApp(['/book/7?focus=20&ch=2']));
   await waitFor(() => expect(api.getBlocks).toHaveBeenCalledWith(7, 2));
 });
 

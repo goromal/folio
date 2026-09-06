@@ -1,5 +1,7 @@
 .pager { display: grid; grid-template-columns: auto 1fr auto; align-items: stretch; gap: 0.25rem; height: 100%; }
-.viewport { overflow: hidden; height: 100%; }
+/* touch-action: pan-y keeps vertical scrolling native while reserving horizontal
+   gestures for our swipe handler (and blocking the browser's swipe-to-go-back). */
+.viewport { overflow: hidden; height: 100%; touch-action: pan-y; }
 .flow {
   /* column-count is set inline from the measured width (see Paginator.tsx). */
   height: 100%;
@@ -7,7 +9,13 @@
   column-fill: auto;
   font-size: var(--reader-fs);
   line-height: 1.6;
-  transition: transform 0.2s ease;
+  /* Deliberately NOT transitioned. The flow is the whole chapter in one multi-column
+     box — measured at 267,849px wide (718 pages) for the largest chapter in the
+     library — and animating a transform across it is catastrophic: headless Chrome at
+     a phone viewport took 4,552ms to present the first frame with
+     `transition: transform 0.2s ease`, versus 17ms with none. That stall is the
+     page-turn latency, not the gesture. Page turns snap, like a Kindle. Re-adding a
+     transition here re-adds the stall. */
 }
 .zone {
   background: transparent; border: none; color: var(--muted); cursor: pointer;
