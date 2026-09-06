@@ -60,11 +60,16 @@ export const Paginator = forwardRef<
     // viewport is the drift-proof top-of-page block. (`page` stays in deps so this
     // re-runs after a page turn moves the transform.)
     const vpRect = vp.getBoundingClientRect();
-    const boxes = (Array.from(flow.querySelectorAll('[data-block-id]')) as HTMLElement[]).map((el) => ({
-      id: Number(el.getAttribute('data-block-id')),
-      left: el.getBoundingClientRect().left,
-    }));
-    return topVisibleBlock(boxes, vpRect.left, vpRect.right);
+    // Hand the elements over lazily: topVisibleBlock binary-searches them, so only a
+    // dozen or so rects get measured instead of one per block in the chapter.
+    const els = flow.querySelectorAll('[data-block-id]') as NodeListOf<HTMLElement>;
+    return topVisibleBlock(
+      els.length,
+      (i) => els[i].getBoundingClientRect().left,
+      (i) => Number(els[i].getAttribute('data-block-id')),
+      vpRect.left,
+      vpRect.right,
+    );
   }, [page, stride]);
 
   const reportPageBlock = useCallback(() => {
