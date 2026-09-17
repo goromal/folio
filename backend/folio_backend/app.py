@@ -250,6 +250,26 @@ def create_app(db_path, static_dir=None):
         app.mount("/folio", StaticFiles(directory=resolved_static, html=True),
                   name="folio")
 
+    # ---- agent companion (env-gated: needs configured agents + a secrets file) ----
+    _agents = tuple(os.environ.get("FOLIO_AGENTS", "").split())
+    _agent_secrets = os.environ.get("FOLIO_AGENT_SECRETS", "")
+    if _agents and _agent_secrets:
+        from folio_backend.agent import AgentSessions
+        from folio_backend.agent_auth import AgentAuth, load_secrets
+        from folio_backend.agent_router import create_agent_router
+
+        _spool = os.path.abspath(os.environ.get("FOLIO_AGENT_SPOOL", "/tmp/folio-agent"))
+        os.makedirs(_spool, mode=0o700, exist_ok=True)
+        _key, _pwhash = load_secrets(_agent_secrets)
+        _sessions = AgentSessions(
+            agents=_agents, spool_dir=_spool,
+            tmux_bin=os.environ.get("FOLIO_AGENT_TMUX", "tmux"),
+            config=os.environ.get("FOLIO_AGENT_TMUX_CONFIG") or None,
+            session_command=os.environ.get(
+                "FOLIO_AGENT_SESSION_CMD", "folio-agent-session"),
+        )
+        app.include_router(create_agent_router(AgentAuth(_key, _pwhash), _sessions))
+
     # ---- agent view-follow ----
     @app.post("/view/focus")
     async def set_view_focus(body: FocusIn, conn=Depends(db)):
