@@ -152,3 +152,36 @@ export function subscribeEvents(onEvent: (e: FolioEvent) => void): () => void {
   };
   return () => es.close();
 }
+
+export interface AgentSession {
+  name: string;
+  agent: string;
+  created: number;
+  attached: number;
+}
+
+export interface AgentConfig {
+  agents: string[];
+  csrf: string;
+}
+
+function csrfInit(method: string, csrf: string, data?: unknown): RequestInit {
+  const headers: Record<string, string> = { 'x-csrf-token': csrf };
+  if (data !== undefined) headers['content-type'] = 'application/json';
+  return { method, headers, body: data !== undefined ? JSON.stringify(data) : undefined };
+}
+
+export const agentApi = {
+  authCheck: async (): Promise<boolean> => {
+    const res = await fetch(`${BASE}/agent/auth-check`);
+    return res.status === 204;
+  },
+  login: (password: string) =>
+    req<AgentConfig>('/agent/login', jsonInit('POST', { password })),
+  config: () => req<AgentConfig>('/agent/config'),
+  listSessions: () => req<AgentSession[]>('/agent/sessions'),
+  spawn: (agent: string, csrf: string) =>
+    req<{ name: string }>('/agent/sessions', csrfInit('POST', csrf, { agent })),
+  kill: (name: string, csrf: string) =>
+    req<void>(`/agent/sessions/${encodeURIComponent(name)}`, csrfInit('DELETE', csrf)),
+};

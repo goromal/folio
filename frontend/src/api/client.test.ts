@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { api } from './client';
+import { agentApi, api } from './client';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -174,6 +174,30 @@ test('savePosition PUTs the position body', async () => {
   expect((init as RequestInit).method).toBe('PUT');
   expect(JSON.parse((init as RequestInit).body as string)).toEqual({ chapter_id: 2, block_id: 3 });
   expect(r.block_id).toBe(3);
+});
+
+test('authCheck maps 204/401 to boolean', async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce({ status: 204 })
+    .mockResolvedValueOnce({ status: 401 });
+  vi.stubGlobal('fetch', fetchMock);
+  expect(await agentApi.authCheck()).toBe(true);
+  expect(await agentApi.authCheck()).toBe(false);
+  vi.unstubAllGlobals();
+});
+
+test('spawn sends csrf header and agent body', async () => {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true, status: 200, json: async () => ({ name: 'folio-agent--claude--0123abcd' }),
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const res = await agentApi.spawn('claude', 'CSRF');
+  expect(res.name).toContain('folio-agent--claude');
+  const [, init] = fetchMock.mock.calls[0];
+  expect(init.method).toBe('POST');
+  expect(init.headers['x-csrf-token']).toBe('CSRF');
+  expect(JSON.parse(init.body)).toEqual({ agent: 'claude' });
+  vi.unstubAllGlobals();
 });
 
 test('subscribeEvents delivers parsed events and unsubscribes', async () => {
