@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { agentApi, type AgentSession } from '../api/client';
+import { installTouchScroll } from './touchScroll';
 import styles from './AgentPanel.module.css';
 
 const STORAGE_KEY = 'folio.agentSession';
@@ -39,6 +40,13 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const initialized = useRef(false);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  // Finger-drag scrollback over the ttyd iframe (same-origin), mirroring Agent UI.
+  useEffect(() => {
+    if (phase !== 'session' || !frameRef.current) return;
+    return installTouchScroll(frameRef.current);
+  }, [phase, session]);
 
   const enterAuthed = useCallback(async (nextCsrf: string, nextAgents: string[]) => {
     setCsrf(nextCsrf);
@@ -176,6 +184,7 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
             <button type="button" disabled={busy} onClick={onClose}>Close session</button>
           </div>
           <iframe
+            ref={frameRef}
             className={styles.frame}
             title="Agent terminal"
             src={`/folio/agent/terminal/?arg=${encodeURIComponent(session)}`}
