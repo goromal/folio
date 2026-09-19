@@ -130,7 +130,10 @@ def hub_base_url():
 
 
 _MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
-_ALWAYS_ALLOWED_PREFIXES = ("/lease", "/hub", "/view/focus")
+# "/agent" is the temp-dir companion (tmux terminals); it never touches the folio
+# DB, so its writes must not be gated by the DB lease -- otherwise a spoke that
+# doesn't hold the lease gets 423 on /agent/login and can't use the companion.
+_ALWAYS_ALLOWED_PREFIXES = ("/lease", "/hub", "/view/focus", "/agent")
 
 
 def _write_allowed_path(path):
