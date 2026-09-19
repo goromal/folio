@@ -136,6 +136,8 @@ export interface Focus {
   book_id: number;
   chapter_id: number | null;
   block_id: number;
+  // True on the stale frame the stream replays on (re)connect (vs a live goto).
+  replay?: boolean;
 }
 
 export type FolioEvent = ({ type: 'focus' } & Focus) | { type: 'changed' };
@@ -152,3 +154,58 @@ export function subscribeEvents(onEvent: (e: FolioEvent) => void): () => void {
   };
   return () => es.close();
 }
+
+export interface AgentSession {
+  name: string;
+  agent: string;
+  created: number;
+  attached: number;
+}
+
+export interface AgentConfig {
+  agents: string[];
+  csrf: string;
+}
+
+function csrfInit(method: string, csrf: string, data?: unknown): RequestInit {
+  const headers: Record<string, string> = { 'x-csrf-token': csrf };
+  if (data !== undefined) headers['content-type'] = 'application/json';
+  return { method, headers, body: data !== undefined ? JSON.stringify(data) : undefined };
+}
+
+// Distinguish companion login failures so the UI can show the real reason instead
+// of always saying "Invalid password".
+export type AgentErrorKind = 'unauthorized' | 'locked' | 'network' | 'error';
+export class AgentError extends Error {
+  readonly kind: AgentErrorKind;
+  constructor(kind: AgentErrorKind) {
+    super(kind);
+    this.name = 'AgentError';
+    this.kind = kind;
+  }
+}
+
+export const agentApi = {
+  authCheck: async (): Promise<boolean> => {
+    const res = await fetch(`${BASE}/agent/auth-check`);
+    return res.status === 204;
+  },
+  login: async (password: string): Promise<AgentConfig> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/agent/login`, jsonInit('POST', { password }));
+    } catch {
+      throw new AgentError('network');
+    }
+    if (res.status === 401) throw new AgentError('unauthorized');
+    if (res.status === 423) throw new AgentError('locked');
+    if (!res.ok) throw new AgentError('error');
+    return (await res.json()) as AgentConfig;
+  },
+  config: () => req<AgentConfig>('/agent/config'),
+  listSessions: () => req<AgentSession[]>('/agent/sessions'),
+  spawn: (agent: string, csrf: string) =>
+    req<{ name: string }>('/agent/sessions', csrfInit('POST', csrf, { agent })),
+  kill: (name: string, csrf: string) =>
+    req<void>(`/agent/sessions/${encodeURIComponent(name)}`, csrfInit('DELETE', csrf)),
+};

@@ -47,13 +47,19 @@ async def focus_event_stream(view):
     """SSE body: emit the current focus immediately (so a fresh reader syncs),
     then each new focus; a keep-alive comment every 15s of silence.
 
+    The immediate frame is tagged `replay: true`: it is a stale snapshot resent
+    on every (re)connect, not a live goto. A reader uses it to sync a block
+    WITHIN the book it is already showing, but must not treat it as a command to
+    navigate to a different book -- otherwise every freshly opened book bounces
+    to whatever book was last focused. Live frames (real gotos) carry no flag.
+
     Kept as a module-level generator (not an inline closure) so its first-frame
     behavior can be unit-tested deterministically without an HTTP stream read
     (iterating the infinite body over TestClient deadlocks)."""
     q = view.subscribe()
     try:
         if view.focus is not None:
-            yield f"data: {json.dumps(view.focus)}\n\n"
+            yield f"data: {json.dumps({**view.focus, 'replay': True})}\n\n"
         while True:
             try:
                 focus = await asyncio.wait_for(q.get(), timeout=15)

@@ -63,7 +63,10 @@ export function ReaderShell() {
     const off = subscribeEvents((e) => {
       if (e.type === 'focus') {
         if (e.book_id !== id) {
-          navigate(`/book/${e.book_id}`);
+          // Live-follow a real agent goto to another book, but ignore the stale
+          // focus the stream replays on (re)connect -- otherwise opening any book
+          // bounces to whatever book was last focused.
+          if (!e.replay) navigate(`/book/${e.book_id}`);
           return;
         }
         if (e.chapter_id != null) setActiveChapter(e.chapter_id);

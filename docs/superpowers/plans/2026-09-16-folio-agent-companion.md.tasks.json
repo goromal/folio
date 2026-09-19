@@ -1,0 +1,86 @@
+{
+  "planPath": "folio/docs/superpowers/plans/2026-09-16-folio-agent-companion.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Agent UI Python trusts the configured agent list",
+      "status": "completed",
+      "description": "**Goal:** Remove the {claude,codex} filter and hardcoded SESSION_NAME agent alternation so any shape-valid --agent works.\n\n**Files:** Modify flasks/agent_ui/agent_ui.py (SESSION_NAME ~26-29, allowed_agents ~226); Test flasks/agent_ui/tests/test_agent_ui.py.\n\n**Acceptance Criteria:**\n- SESSION_NAME matches any [A-Za-z0-9_][A-Za-z0-9_-]* agent.\n- create_app(agents=(\"gemini\",)) accepts gemini, rejects codex.\n- Existing tests pass.\n\n**Verify:** python -m pytest tests -v (agent_ui nix shell) all pass.\n\n```json:metadata\n{\"files\": [\"flasks/agent_ui/agent_ui.py\", \"flasks/agent_ui/tests/test_agent_ui.py\"], \"verifyCommand\": \"python -m pytest tests -v\", \"acceptanceCriteria\": [\"SESSION_NAME accepts any shape-valid agent\", \"create_app trusts passed agent list\", \"existing tests pass\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Agent UI Nix module stops hardcoding agents in shell guards",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Drop the redundant [claude codex] filter; interpolate the configured agent list into agent-ui-enter/agent-ui-session case guards and agent-ui-attach regex.\n\n**Files:** Modify anixpkgs/pkgs/python-packages/flasks/agent_ui/module.nix (agents ~11-18, agentEnter ~22-33, agentSession ~50-53, agentAttach ~65).\n\n**Acceptance Criteria:**\n- agents = config.machines.features.agents.frameworks (no re-filter).\n- enter/session case + attach regex accept configured agents + shell, generated from the list.\n- Module parses.\n\n**Verify:** nix-instantiate --parse module.nix; full build in Task 12.\n\n```json:metadata\n{\"files\": [\"anixpkgs/pkgs/python-packages/flasks/agent_ui/module.nix\"], \"verifyCommand\": \"nix-instantiate --parse pkgs/python-packages/flasks/agent_ui/module.nix\", \"acceptanceCriteria\": [\"agents from NixOS option\", \"shell guards generated from list\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Thread a dedicated tmux socket + config through agent_ui.py",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Let Agent UI run tmux on an isolated -L socket with a -f config at server start so mouse mode is enabled without touching the user's tmux.\n\n**Files:** Modify flasks/agent_ui/agent_ui.py (TmuxSessions ~77-137, create_app ~213-234, main ~470-499); Test tests/test_agent_ui.py.\n\n**Acceptance Criteria:**\n- TmuxSessions(socket=..) prefixes every tmux call with -L <socket>.\n- start() adds -f <config>; list/interrupt/terminate do not.\n- --tmux-socket/--tmux-config CLI args reach TmuxSessions.\n\n**Verify:** python -m pytest tests -v all pass.\n\n```json:metadata\n{\"files\": [\"flasks/agent_ui/agent_ui.py\", \"flasks/agent_ui/tests/test_agent_ui.py\"], \"verifyCommand\": \"python -m pytest tests -v\", \"acceptanceCriteria\": [\"-L socket prefixes commands\", \"-f config only on start\", \"CLI args wired\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Enable tmux mouse mode in the Agent UI Nix module",
+      "status": "completed",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** Dedicated tmux socket 'agent-ui' + config file (set -g mouse on; history-limit) wired through the service and agent-ui-attach.\n\n**Files:** Modify anixpkgs/pkgs/python-packages/flasks/agent_ui/module.nix (add agentTmuxConf; attach uses -L agent-ui; ExecStart passes --tmux-socket/--tmux-config).\n\n**Acceptance Criteria:**\n- Config file with mouse on + large history-limit built.\n- Service ExecStart passes --tmux-socket agent-ui --tmux-config <conf>.\n- agent-ui-attach uses -L agent-ui.\n\n**Verify:** nix-instantiate --parse; Task 12 build + manual wheel-scroll smoke.\n\n```json:metadata\n{\"files\": [\"anixpkgs/pkgs/python-packages/flasks/agent_ui/module.nix\"], \"verifyCommand\": \"nix-instantiate --parse pkgs/python-packages/flasks/agent_ui/module.nix\", \"acceptanceCriteria\": [\"mouse-on tmux config\", \"socket+config passed to service\", \"attach on -L agent-ui\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Folio companion auth module",
+      "status": "completed",
+      "description": "**Goal:** Load an agent-ui-style secrets file; verify password (werkzeug); mint HMAC cookie + CSRF token.\n\n**Files:** Create folio/backend/folio_backend/agent_auth.py, folio/backend/tests/test_agent_auth.py; Modify folio/backend/setup.py (add werkzeug).\n\n**Acceptance Criteria:**\n- load_secrets returns (secret_key bytes, password_hash) and raises on missing keys.\n- check_password validates werkzeug hash; wrong/empty fail.\n- is_authenticated accepts minted cookie, rejects others (constant-time).\n\n**Verify:** python -m unittest tests.test_agent_auth -v (folio-backend nix shell) OK.\n\n```json:metadata\n{\"files\": [\"folio/backend/folio_backend/agent_auth.py\", \"folio/backend/tests/test_agent_auth.py\", \"folio/backend/setup.py\"], \"verifyCommand\": \"python -m unittest tests.test_agent_auth -v\", \"acceptanceCriteria\": [\"load_secrets validates keys\", \"password check works\", \"cookie roundtrip constant-time\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Ephemeral temp-dir session manager",
+      "status": "completed",
+      "description": "**Goal:** AgentSessions spawns/lists/kills folio-agent--<agent>--<id> tmux sessions on a dedicated socket, each in a temp dir keyed by session id.\n\n**Files:** Create folio/backend/folio_backend/agent.py, folio/backend/tests/test_agent_sessions.py.\n\n**Acceptance Criteria:**\n- spawn(agent) rejects unconfigured agents, creates <spool>/folio-agent-<id>, issues tmux -L socket [-f conf] new-session ... <workdir> <agent>.\n- list() parses list-sessions, returns only well-formed configured folio-agent sessions.\n- kill(name) validates name, kills session, removes matching temp dir only.\n\n**Verify:** python -m unittest tests.test_agent_sessions -v OK.\n\n```json:metadata\n{\"files\": [\"folio/backend/folio_backend/agent.py\", \"folio/backend/tests/test_agent_sessions.py\"], \"verifyCommand\": \"python -m unittest tests.test_agent_sessions -v\", \"acceptanceCriteria\": [\"spawn creates dir + new-session\", \"list filters/parses\", \"kill removes only matching dir\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Agent companion router + env-gated wiring in app.py",
+      "status": "completed",
+      "blockedBy": [5, 6],
+      "description": "**Goal:** Expose /agent/{login,auth-check,config,sessions}; register in create_app only when FOLIO_AGENTS and FOLIO_AGENT_SECRETS set.\n\n**Files:** Create folio/backend/folio_backend/agent_router.py, folio/backend/tests/test_api_agent.py; Modify folio/backend/folio_backend/app.py (after SPA mount ~251).\n\n**Acceptance Criteria:**\n- Unauth GET /agent/auth-check -> 401; after login -> 204.\n- GET /agent/config -> {agents, csrf} when authed.\n- POST/DELETE /agent/sessions require CSRF header + configured agent.\n- With FOLIO_AGENTS unset, /agent/* absent (404).\n\n**Verify:** python -m unittest discover -s tests -v OK.\n\n```json:metadata\n{\"files\": [\"folio/backend/folio_backend/agent_router.py\", \"folio/backend/folio_backend/app.py\", \"folio/backend/tests/test_api_agent.py\"], \"verifyCommand\": \"python -m unittest discover -s tests -v\", \"acceptanceCriteria\": [\"auth gate 401/204\", \"config returns agents+csrf\", \"csrf enforced\", \"routes env-gated\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Agent companion API client methods",
+      "status": "completed",
+      "description": "**Goal:** Add agentApi (authCheck, login, config, listSessions, spawn, kill) to the SPA client.\n\n**Files:** Modify folio/frontend/src/api/client.ts, folio/frontend/src/api/client.test.ts.\n\n**Acceptance Criteria:**\n- authCheck resolves true on 204 / false on 401 (never throws).\n- spawn(agent, csrf) POSTs JSON with x-csrf-token header.\n- kill(name, csrf) DELETEs with CSRF header, URL-encoded name.\n\n**Verify:** npm test -- --run src/api/client.test.ts pass.\n\n```json:metadata\n{\"files\": [\"folio/frontend/src/api/client.ts\", \"folio/frontend/src/api/client.test.ts\"], \"verifyCommand\": \"npm test -- --run src/api/client.test.ts\", \"acceptanceCriteria\": [\"authCheck boolean\", \"spawn sends csrf\", \"kill encodes name\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: useMediaQuery hook + AgentPanel component",
+      "status": "completed",
+      "blockedBy": [8],
+      "description": "**Goal:** Self-contained panel: login -> agent picker -> terminal iframe; plus a media-query hook.\n\n**Files:** Create folio/frontend/src/agent/useMediaQuery.ts, AgentPanel.tsx, AgentPanel.module.css, AgentPanel.test.tsx.\n\n**Acceptance Criteria:**\n- Unauth shows password form; correct login reveals picker.\n- Picking an agent calls spawn; iframe src includes /folio/agent/terminal/?arg=<name>.\n- Existing session from listSessions reattaches without picker.\n- Close session calls kill and returns to picker.\n\n**Verify:** npm test -- --run src/agent/AgentPanel.test.tsx pass.\n\n```json:metadata\n{\"files\": [\"folio/frontend/src/agent/useMediaQuery.ts\", \"folio/frontend/src/agent/AgentPanel.tsx\", \"folio/frontend/src/agent/AgentPanel.module.css\", \"folio/frontend/src/agent/AgentPanel.test.tsx\"], \"verifyCommand\": \"npm test -- --run src/agent/AgentPanel.test.tsx\", \"acceptanceCriteria\": [\"login->picker\", \"spawn->iframe\", \"reattach existing\", \"close->picker\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Wire the companion into App.tsx with responsive layout",
+      "status": "completed",
+      "blockedBy": [9],
+      "description": "**Goal:** Header menu button opens the companion; reader+agent side-by-side when wide, toggle when narrow; panel kept mounted so the terminal websocket survives toggles.\n\n**Files:** Modify folio/frontend/src/App.tsx, App.test.tsx; Create folio/frontend/src/App.module.css.\n\n**Acceptance Criteria:**\n- Header 'Agent' button toggles the companion; library/reader unchanged when closed.\n- >=1000px both render; <1000px one shows and button toggles.\n- Reader pane stays mounted via hidden.\n\n**Verify:** npm test -- --run src/App.test.tsx pass; npm run build succeeds.\n\n```json:metadata\n{\"files\": [\"folio/frontend/src/App.tsx\", \"folio/frontend/src/App.module.css\", \"folio/frontend/src/App.test.tsx\"], \"verifyCommand\": \"npm test -- --run && npm run build\", \"acceptanceCriteria\": [\"agent button toggles companion\", \"responsive side-by-side/toggle\", \"reader stays mounted\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Folio module — ttyd service, ports, nginx, agent env, secrets copy",
+      "status": "completed",
+      "blockedBy": [7],
+      "description": "**Goal:** Serve the companion under Folio's origin: derive agents from the NixOS option, run folio-agent-terminal ttyd, add nginx auth_request locations, provide session/attach scripts, provision the secrets copy.\n\n**Files:** Modify anixpkgs/pkgs/nixos/service-ports.nix (folio.agentTerminal), anixpkgs/pkgs/modules/folio/module.nix (options/env/scripts/ttyd/nginx/assert), anixpkgs/pkgs/nixos/features/services.nix (agentCompanion).\n\n**Acceptance Criteria:**\n- service-ports.folio.agentTerminal exists, distinct.\n- Backend gets FOLIO_AGENTS/SECRETS/SPOOL/TMUX*/SESSION_CMD when companion enabled + agents non-empty.\n- folio-agent-terminal ttyd serves base-path /folio/agent/terminal, gated by X-Folio-Agent-Authenticated.\n- nginx adds = /folio/agent/auth-check (internal) + /folio/agent/terminal/ (ttyd, ws, auth_request).\n- folio_agent.json provisioned as a copy of agent_ui.json via ExecStartPre.\n\n**Verify:** nix-instantiate --parse each file; full eval/build in Task 12.\n\n```json:metadata\n{\"files\": [\"anixpkgs/pkgs/nixos/service-ports.nix\", \"anixpkgs/pkgs/modules/folio/module.nix\", \"anixpkgs/pkgs/nixos/features/services.nix\"], \"verifyCommand\": \"nix-instantiate --parse pkgs/modules/folio/module.nix\", \"acceptanceCriteria\": [\"agentTerminal port\", \"companion env\", \"ttyd service\", \"nginx auth_request locations\", \"secrets copy\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: Full build, deploy, and manual smoke of all three features",
+      "status": "pending",
+      "blockedBy": [4, 10, 11],
+      "description": "**Goal:** Prove the whole change builds under Nix and works on the machine (scrollback, non-hardcoded agents, Folio companion).\n\n**Files:** none (verification; fixes land in the relevant task's files).\n\n**Acceptance Criteria:**\n- folio-backend, agent_ui, folio-frontend Nix builds pass (in-derivation tests included).\n- NixOS eval of target profile succeeds with new options/services.\n- Manual: mouse wheel scrolls Agent UI scrollback (no Ctrl-b [).\n- Manual: Folio reader+agent side-by-side at desktop width; narrow toggles via menu; companion password unlocks; spawned session scrolls; Close session removes temp dir.\n\n**Verify:** nix build .#agent_ui .#folio-backend .#folio-frontend -L; nix eval nixosConfigurations.<host>...folio-agent-terminal; deploy via anixpkgs-deploy; manual checklist.\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"nix build .#agent_ui .#folio-backend .#folio-frontend -L\", \"acceptanceCriteria\": [\"three nix builds pass\", \"nixos eval succeeds\", \"manual: wheel scrollback\", \"manual: folio companion side-by-side/toggle/spawn/close\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-09-16T00:00:00Z"
+}
