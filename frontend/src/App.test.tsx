@@ -3,14 +3,17 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { App } from './App';
 import { api } from './api/client';
 
-vi.mock('./api/client', () => ({
-  LOCKED_EVENT: 'folio:locked',
-  api: { listBooks: vi.fn(), deleteBook: vi.fn(), getToc: vi.fn(), getBlocks: vi.fn(), getLastPosition: vi.fn(), getLease: vi.fn() },
-  agentApi: {
-    authCheck: vi.fn().mockResolvedValue(false), login: vi.fn(), config: vi.fn(),
-    listSessions: vi.fn().mockResolvedValue([]), spawn: vi.fn(), kill: vi.fn(),
-  },
-}));
+vi.mock('./api/client', async (importActual) => {
+  const actual = await importActual<typeof import('./api/client')>();
+  return {
+    ...actual, // keep AgentError et al. real
+    api: { listBooks: vi.fn(), deleteBook: vi.fn(), getToc: vi.fn(), getBlocks: vi.fn(), getLastPosition: vi.fn(), getLease: vi.fn() },
+    agentApi: {
+      authCheck: vi.fn().mockResolvedValue(false), login: vi.fn(), config: vi.fn(),
+      listSessions: vi.fn().mockResolvedValue([]), spawn: vi.fn(), kill: vi.fn(),
+    },
+  };
+});
 
 beforeEach(() => {
   (api.listBooks as ReturnType<typeof vi.fn>).mockResolvedValue([

@@ -251,7 +251,9 @@ def create_app(db_path, static_dir=None):
                   name="folio")
 
     # ---- agent companion (env-gated: needs configured agents + a secrets file) ----
-    _agents = tuple(os.environ.get("FOLIO_AGENTS", "").split())
+    # Accept comma- or whitespace-separated agents (systemd Environment= mangles
+    # spaces, so the module passes them comma-joined).
+    _agents = tuple(os.environ.get("FOLIO_AGENTS", "").replace(",", " ").split())
     _agent_secrets = os.environ.get("FOLIO_AGENT_SECRETS", "")
     if _agents and _agent_secrets:
         from folio_backend.agent import AgentSessions

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { agentApi, type AgentSession } from '../api/client';
+import { agentApi, AgentError, type AgentSession } from '../api/client';
 import { installTouchScroll } from './touchScroll';
 import styles from './AgentPanel.module.css';
 
@@ -103,8 +103,17 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
       const cfg = await agentApi.login(password);
       setPassword('');
       await enterAuthed(cfg.csrf, cfg.agents);
-    } catch {
-      setError('Invalid password');
+    } catch (err) {
+      const kind = err instanceof AgentError ? err.kind : 'error';
+      setError(
+        kind === 'unauthorized'
+          ? 'Invalid password'
+          : kind === 'locked'
+            ? 'Folio is read-only right now (another machine holds the lease).'
+            : kind === 'network'
+              ? "Can't reach the companion service."
+              : 'Login failed — please try again.',
+      );
     } finally {
       setBusy(false);
     }

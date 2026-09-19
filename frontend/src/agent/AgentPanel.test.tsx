@@ -1,14 +1,18 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AgentPanel } from './AgentPanel';
-import { agentApi } from '../api/client';
+import { agentApi, AgentError } from '../api/client';
 
-vi.mock('../api/client', () => ({
-  agentApi: {
-    authCheck: vi.fn(), login: vi.fn(), config: vi.fn(),
-    listSessions: vi.fn(), spawn: vi.fn(), kill: vi.fn(),
-  },
-}));
+vi.mock('../api/client', async (importActual) => {
+  const actual = await importActual<typeof import('../api/client')>();
+  return {
+    ...actual, // keep AgentError et al. real
+    agentApi: {
+      authCheck: vi.fn(), login: vi.fn(), config: vi.fn(),
+      listSessions: vi.fn(), spawn: vi.fn(), kill: vi.fn(),
+    },
+  };
+});
 
 const mock = (fn: unknown) => fn as ReturnType<typeof vi.fn>;
 
@@ -59,7 +63,7 @@ test('close session kills it and returns to the picker', async () => {
 });
 
 test('a failed login shows an error', async () => {
-  mock(agentApi.login).mockRejectedValue(new Error('bad'));
+  mock(agentApi.login).mockRejectedValue(new AgentError('unauthorized'));
   render(<AgentPanel active />);
   const pw = await screen.findByLabelText('Companion password');
   await userEvent.type(pw, 'wrong');
