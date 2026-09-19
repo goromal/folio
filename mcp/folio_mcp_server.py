@@ -352,7 +352,14 @@ TOOLS = [
     {"name": "folio_lease_acquire",
      "description": "Acquire the folio write lease from the hub (pulls the ground-truth "
                     "DB). Required before creating/editing passages, notes, tags, "
-                    "highlights, or summaries.",
+                    "highlights, or summaries. The lease is per-machine and shared "
+                    "with the human reader on this machine: if folio_lease_status "
+                    "already reports held=true, the machine holds it (usually the "
+                    "human, via the reader UI) and you can write straight away -- "
+                    "acquiring is then a harmless no-op that leaves their in-progress "
+                    "edits intact, and you should NOT release afterward (leave their "
+                    "lease alone). Only acquire+release the full cycle when you found "
+                    "it free (held=false).",
      "inputSchema": {"type": "object", "properties": {}}},
     {"name": "folio_lease_release",
      "description": "Release the folio write lease, writing local changes back to the "

@@ -32,6 +32,15 @@ class HubSelfLeaseTest(unittest.TestCase):
         self.client.post("/lease/release")
         self.assertFalse(self.client.get("/lease").json()["held"])
 
+    def test_reacquire_by_same_machine_is_idempotent(self):
+        # The human holds the machine lease via the UI; the agent on the same
+        # machine (e.g. the Folio companion) calling acquire must get 200 and a
+        # writable lease, not a 423 that reads as "held by <your own machine>".
+        self.assertEqual(self.client.post("/lease/acquire").status_code, 200)
+        r = self.client.post("/lease/acquire")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["holder"], "ats")
+
 
 class SpokeLeaseTest(unittest.TestCase):
     def setUp(self):
@@ -68,6 +77,28 @@ class SpokeLeaseTest(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(self.spoke.get("/lease").json()["holder"], "dell")
         self.assertEqual(self.hub.get("/hub/lease").json()["holder"], "dell")
+
+    def test_reacquire_by_same_spoke_is_idempotent_without_repull(self):
+        # Human acquires on the spoke (pulls the hub DB). The agent on the SAME
+        # machine then calls acquire: it must succeed without re-pulling, which
+        # would clobber the human's in-progress local edits.
+        self.spoke.post("/lease/acquire")
+        calls = []
+        orig_get = app_mod.httpx.get
+
+        def counting_get(url, **kw):
+            calls.append(url)
+            return orig_get(url, **kw)
+
+        app_mod.httpx.get = staticmethod(counting_get)
+        try:
+            r = self.spoke.post("/lease/acquire")
+        finally:
+            app_mod.httpx.get = orig_get
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.spoke.get("/lease").json()["holder"], "dell")
+        self.assertEqual([u for u in calls if u.endswith("/hub/db")], [],
+                         "a redundant same-machine acquire must not re-pull the DB")
 
     def test_second_spoke_denied(self):
         self.hub.post("/hub/lease/acquire", json={"holder": "laptop"})

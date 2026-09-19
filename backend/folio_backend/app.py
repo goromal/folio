@@ -395,6 +395,12 @@ def create_app(db_path, static_dir=None):
         base = lease_mod.hub_base_url()
         if not base:
             raise HTTPException(400, "no hub configured (FOLIO_HUB_HOST unset)")
+        # Idempotent: if this machine already holds the lease, we already have the
+        # ground-truth DB plus whatever local edits are in progress. Re-pulling
+        # would clobber them, so a redundant acquire (e.g. the agent after the
+        # human already acquired) is success without touching the DB.
+        if lease_mod.get_holder(conn)["holder"] == machine:
+            return {"held": True, "holder": machine}
         r = httpx.post(f"{base}/hub/lease/acquire", json={"holder": machine},
                        verify=False, timeout=10)
         if r.status_code == 423:
