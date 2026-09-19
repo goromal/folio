@@ -136,6 +136,8 @@ export interface Focus {
   book_id: number;
   chapter_id: number | null;
   block_id: number;
+  // True on the stale frame the stream replays on (re)connect (vs a live goto).
+  replay?: boolean;
 }
 
 export type FolioEvent = ({ type: 'focus' } & Focus) | { type: 'changed' };

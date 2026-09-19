@@ -108,6 +108,17 @@ test('a focus for a different book navigates there', async () => {
   expect(navigate).toHaveBeenCalledWith('/book/99');
 });
 
+test('a replayed cross-book focus does NOT navigate (stale connect frame)', async () => {
+  // The stream replays its last focus on every (re)connect. That stale frame
+  // must not yank a freshly opened book to the last-focused book — only a live
+  // agent goto (no replay flag) navigates cross-book.
+  renderReader();
+  await screen.findByText('First chapter.');
+  const cb = (subscribeEvents as ReturnType<typeof vi.fn>).mock.calls[0][0] as (f: unknown) => void;
+  act(() => cb({ type: 'focus', replay: true, version: 5, book_id: 99, chapter_id: 1, block_id: 5 }));
+  expect(navigate).not.toHaveBeenCalled();
+});
+
 test('the table of contents can be collapsed and reopened', async () => {
   renderReader();
   expect(await screen.findByRole('button', { name: 'Chapter One' })).toBeInTheDocument();
