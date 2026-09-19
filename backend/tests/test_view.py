@@ -86,6 +86,26 @@ class FocusStreamTest(unittest.TestCase):
                 await gen.aclose()
         asyncio.run(run())
 
+    def test_replayed_first_frame_is_flagged_but_live_frames_are_not(self):
+        # The frame replayed on connect is a stale snapshot, not a live command;
+        # it carries replay=true so a reader won't treat it as an agent goto and
+        # navigate away from the book the user just opened. Frames published after
+        # connect (real gotos) carry no replay flag.
+        async def run():
+            vs = ViewState()
+            await vs.publish(4, 5, 6)
+            gen = focus_event_stream(vs)
+            try:
+                first = await gen.__anext__()
+                self.assertIn('"replay": true', first)
+                await vs.publish(7, 8, 9)
+                second = await gen.__anext__()
+                self.assertIn('"block_id": 9', second)
+                self.assertNotIn("replay", second)
+            finally:
+                await gen.aclose()
+        asyncio.run(run())
+
 
 class ChangeMiddlewareTest(unittest.TestCase):
     def _run(self, method, path, status):

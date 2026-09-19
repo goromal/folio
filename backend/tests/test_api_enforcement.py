@@ -49,6 +49,17 @@ class EnforcementTest(unittest.TestCase):
         self.assertEqual(c.get("/lease").status_code, 200)
         self.assertNotEqual(c.post("/lease/acquire").status_code, 423)
 
+    def test_agent_writes_not_lease_gated(self):
+        # The agent companion (tmux terminals) never touches the folio DB, so its
+        # POST/DELETE must bypass lease enforcement even on a spoke without the
+        # lease. Verified at the predicate level so it holds regardless of whether
+        # the /agent router is mounted (it is env-gated).
+        from folio_backend.lease import _write_allowed_path
+        self.assertTrue(_write_allowed_path("/agent/login"))
+        self.assertTrue(_write_allowed_path("/agent/sessions"))
+        self.assertTrue(_write_allowed_path("/agent/sessions/folio-agent--claude--0123abcd"))
+        self.assertFalse(_write_allowed_path("/notes"))
+
     def test_stream_and_health_pass_through_under_enforcement(self):
         # Enforcement ON (hub), no lease held. Non-mutating requests must pass
         # straight through the raw-ASGI middleware untouched.

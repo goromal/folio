@@ -8,7 +8,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "fastapi", "uvicorn", "pydantic",
-        "ebooklib", "beautifulsoup4", "python-multipart", "httpx",
+        "ebooklib", "beautifulsoup4", "python-multipart", "httpx", "werkzeug",
     ],
     entry_points={"console_scripts": ["folio-backend = folio_backend.main:run"]},
 )

@@ -250,6 +250,28 @@ def create_app(db_path, static_dir=None):
         app.mount("/folio", StaticFiles(directory=resolved_static, html=True),
                   name="folio")
 
+    # ---- agent companion (env-gated: needs configured agents + a secrets file) ----
+    # Accept comma- or whitespace-separated agents (systemd Environment= mangles
+    # spaces, so the module passes them comma-joined).
+    _agents = tuple(os.environ.get("FOLIO_AGENTS", "").replace(",", " ").split())
+    _agent_secrets = os.environ.get("FOLIO_AGENT_SECRETS", "")
+    if _agents and _agent_secrets:
+        from folio_backend.agent import AgentSessions
+        from folio_backend.agent_auth import AgentAuth, load_secrets
+        from folio_backend.agent_router import create_agent_router
+
+        _spool = os.path.abspath(os.environ.get("FOLIO_AGENT_SPOOL", "/tmp/folio-agent"))
+        os.makedirs(_spool, mode=0o700, exist_ok=True)
+        _key, _pwhash = load_secrets(_agent_secrets)
+        _sessions = AgentSessions(
+            agents=_agents, spool_dir=_spool,
+            tmux_bin=os.environ.get("FOLIO_AGENT_TMUX", "tmux"),
+            config=os.environ.get("FOLIO_AGENT_TMUX_CONFIG") or None,
+            session_command=os.environ.get(
+                "FOLIO_AGENT_SESSION_CMD", "folio-agent-session"),
+        )
+        app.include_router(create_agent_router(AgentAuth(_key, _pwhash), _sessions))
+
     # ---- agent view-follow ----
     @app.post("/view/focus")
     async def set_view_focus(body: FocusIn, conn=Depends(db)):
@@ -373,6 +395,12 @@ def create_app(db_path, static_dir=None):
         base = lease_mod.hub_base_url()
         if not base:
             raise HTTPException(400, "no hub configured (FOLIO_HUB_HOST unset)")
+        # Idempotent: if this machine already holds the lease, we already have the
+        # ground-truth DB plus whatever local edits are in progress. Re-pulling
+        # would clobber them, so a redundant acquire (e.g. the agent after the
+        # human already acquired) is success without touching the DB.
+        if lease_mod.get_holder(conn)["holder"] == machine:
+            return {"held": True, "holder": machine}
         r = httpx.post(f"{base}/hub/lease/acquire", json={"holder": machine},
                        verify=False, timeout=10)
         if r.status_code == 423:

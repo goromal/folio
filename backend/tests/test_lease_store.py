@@ -17,6 +17,13 @@ class LeaseStoreTest(unittest.TestCase):
         self.assertFalse(lease.acquire(self.conn, "laptop"))
         self.assertEqual(lease.get_holder(self.conn)["holder"], "dell")
 
+    def test_acquire_is_idempotent_for_same_holder(self):
+        # A machine's human and its agent share one per-machine lease, so the
+        # second party to call acquire must succeed, not be told it's taken.
+        self.assertTrue(lease.acquire(self.conn, "dell"))
+        self.assertTrue(lease.acquire(self.conn, "dell"))
+        self.assertEqual(lease.get_holder(self.conn)["holder"], "dell")
+
     def test_release_only_by_holder(self):
         lease.acquire(self.conn, "dell")
         self.assertFalse(lease.release(self.conn, "laptop"))

@@ -25,13 +25,21 @@ def get_holder(conn):
 
 
 def acquire(conn, holder):
-    """Atomically take the lease if free. Returns True iff granted."""
+    """Atomically take the lease if free, or confirm we already hold it.
+
+    Returns True iff `holder` holds the lease afterward. Idempotent for the same
+    holder: a machine's human (via the UI) and its agent (via the MCP/companion)
+    share one per-machine lease, so a redundant acquire by the current holder is
+    success, not a conflict. A *different* holder is still denied (returns False).
+    """
     cur = conn.execute(
         "UPDATE lease SET holder = ?, acquired_at = ? WHERE id = 1 AND holder IS NULL",
         (holder, _now()),
     )
     conn.commit()
-    return cur.rowcount == 1
+    if cur.rowcount == 1:
+        return True
+    return get_holder(conn)["holder"] == holder
 
 
 def steal(conn, holder):
@@ -130,7 +138,10 @@ def hub_base_url():
 
 
 _MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
-_ALWAYS_ALLOWED_PREFIXES = ("/lease", "/hub", "/view/focus")
+# "/agent" is the temp-dir companion (tmux terminals); it never touches the folio
+# DB, so its writes must not be gated by the DB lease -- otherwise a spoke that
+# doesn't hold the lease gets 423 on /agent/login and can't use the companion.
+_ALWAYS_ALLOWED_PREFIXES = ("/lease", "/hub", "/view/focus", "/agent")
 
 
 def _write_allowed_path(path):
