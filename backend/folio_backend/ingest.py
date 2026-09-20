@@ -1,4 +1,5 @@
 import hashlib
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -71,6 +72,43 @@ def ingest_epub(conn, path):
                 "INSERT INTO blocks (book_id, chapter_id, order_idx, type, text) "
                 "VALUES (?,?,?,?,?)",
                 (book_id, chapter_id, order, BLOCK_TAGS[el.name], text))
+            order += 1
+
+    conn.commit()
+    return book_id
+
+
+def ingest_scriptures(conn, volume):
+    """Insert one normalized scripture volume as a folio book.
+
+    `volume` = {title, label, chapters:[{title, verses:[{num, text}]}]}.
+    One block per verse (type "para"), verse number prefixed into the text.
+    Idempotent by content hash, mirroring ingest_epub."""
+    canonical = json.dumps(volume, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    source_hash = hashlib.sha256(canonical).hexdigest()
+
+    existing = conn.execute(
+        "SELECT id FROM books WHERE source_hash = ?", (source_hash,)).fetchone()
+    if existing:
+        return existing["id"]
+
+    cur = conn.execute(
+        "INSERT INTO books (title, author, source_hash, created_at) VALUES (?,?,?,?)",
+        (volume["title"], volume.get("label"), source_hash, _now()))
+    book_id = cur.lastrowid
+
+    order = 0
+    for chap_order, chapter in enumerate(volume["chapters"]):
+        ccur = conn.execute(
+            "INSERT INTO chapters (book_id, title, order_idx, parent_id) "
+            "VALUES (?,?,?,NULL)", (book_id, chapter["title"], chap_order))
+        chapter_id = ccur.lastrowid
+        for verse in chapter["verses"]:
+            conn.execute(
+                "INSERT INTO blocks (book_id, chapter_id, order_idx, type, text) "
+                "VALUES (?,?,?,?,?)",
+                (book_id, chapter_id, order, "para",
+                 f'{verse["num"]} {verse["text"]}'))
             order += 1
 
     conn.commit()
