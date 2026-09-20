@@ -105,6 +105,16 @@ def get_summaries(conn, scope, scope_id):
         (scope, scope_id)).fetchall()
 
 
+def update_summary(conn, summary_id, body, generated_by=None):
+    if generated_by is None:
+        conn.execute("UPDATE summaries SET body = ? WHERE id = ?", (body, summary_id))
+    else:
+        conn.execute(
+            "UPDATE summaries SET body = ?, generated_by = ? WHERE id = ?",
+            (body, generated_by, summary_id))
+    conn.commit()
+
+
 # ---- reading position -----------------------------------------------------
 def save_position(conn, book_id, chapter_id, block_id):
     conn.execute(

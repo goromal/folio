@@ -38,6 +38,17 @@ class SchemaTest(unittest.TestCase):
         fk = self.conn.execute("PRAGMA foreign_keys").fetchone()[0]
         self.assertEqual(fk, 1)
 
+    def test_chapter_block_index_exists(self):
+        # Guards the toc first_block_id perf fix: without this index the
+        # per-chapter subquery scans the whole blocks table (~42s for the Bible).
+        idx = self.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' "
+            "AND name='idx_blocks_chapter_order'").fetchone()
+        self.assertIsNotNone(idx)
+
+    def test_busy_timeout_set(self):
+        self.assertGreaterEqual(self.conn.execute("PRAGMA busy_timeout").fetchone()[0], 5000)
+
 
 if __name__ == "__main__":
     unittest.main()

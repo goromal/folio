@@ -13,6 +13,10 @@ def connect(db_path):
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Wait (up to 5s) for a competing writer instead of failing immediately with
+    # "database is locked": each request uses its own connection, so a slow read
+    # overlapping a position/annotation write would otherwise 500 under load.
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 

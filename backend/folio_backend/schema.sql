@@ -25,6 +25,10 @@ CREATE TABLE IF NOT EXISTS blocks (
     text       TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_blocks_book_order ON blocks(book_id, order_idx);
+-- Chapter-scoped block lookups (get_blocks by chapter; the toc first_block_id
+-- subquery). Without this, first_block_id scans the whole blocks table once per
+-- chapter — ~42s for the 1,189-chapter Bible.
+CREATE INDEX IF NOT EXISTS idx_blocks_chapter_order ON blocks(chapter_id, order_idx);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS blocks_fts USING fts5(
     text, content='blocks', content_rowid='id'

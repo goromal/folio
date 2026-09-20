@@ -13,6 +13,7 @@ class ChapterOut(BaseModel):
     title: str
     order_idx: int
     parent_id: Optional[int] = None
+    first_block_id: Optional[int] = None
 
 
 class BlockOut(BaseModel):
@@ -76,6 +77,11 @@ class SummaryIn(BaseModel):
     scope_id: int
     body: str
     generated_by: str = "user"
+
+
+class SummaryUpdate(BaseModel):
+    body: str
+    generated_by: str | None = None
 
 
 class FocusIn(BaseModel):

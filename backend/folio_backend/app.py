@@ -17,7 +17,7 @@ from folio_backend.db import connect, init_db
 from folio_backend.models import (
     BookOut, ChapterOut, BlockOut, SearchHit,
     PassageIn, PassageOut, HighlightIn, NoteIn, NoteUpdate, TagIn,
-    LinkIn, SummaryIn, FocusIn, PositionIn, PositionOut, LeaseHolderIn,
+    LinkIn, SummaryIn, SummaryUpdate, FocusIn, PositionIn, PositionOut, LeaseHolderIn,
 )
 from folio_backend.view import ViewState, focus_event_stream, ChangeBroadcastMiddleware
 
@@ -71,8 +71,10 @@ def create_app(db_path, static_dir=None):
     @app.get("/books/{book_id}/toc", response_model=list[ChapterOut])
     def book_toc(book_id: int, conn=Depends(db)):
         rows = conn.execute(
-            "SELECT id, title, order_idx, parent_id FROM chapters "
-            "WHERE book_id = ? ORDER BY order_idx", (book_id,)).fetchall()
+            "SELECT id, title, order_idx, parent_id, "
+            "(SELECT id FROM blocks WHERE chapter_id = chapters.id "
+            " ORDER BY order_idx LIMIT 1) AS first_block_id "
+            "FROM chapters WHERE book_id = ? ORDER BY order_idx", (book_id,)).fetchall()
         if not rows:
             exists = conn.execute("SELECT 1 FROM books WHERE id = ?",
                                  (book_id,)).fetchone()
@@ -168,6 +170,11 @@ def create_app(db_path, static_dir=None):
     def list_summaries_ep(scope: str, scope_id: int, conn=Depends(db)):
         return [dict(r) for r in store.get_summaries(conn, scope, scope_id)]
 
+    @app.put("/summaries/{summary_id}", status_code=200)
+    def update_summary_ep(summary_id: int, s: SummaryUpdate, conn=Depends(db)):
+        store.update_summary(conn, summary_id, s.body, s.generated_by)
+        return {"id": summary_id}
+
     # ---- annotation lists (MCP + notes view) ----
     @app.get("/books/{book_id}/notes")
     def list_book_notes(book_id: int, chapter_id: int | None = None, conn=Depends(db)):
@@ -198,10 +205,18 @@ def create_app(db_path, static_dir=None):
                 "SELECT id, body, created_at, updated_at FROM notes "
                 "WHERE passage_id = ? ORDER BY id", (pid,)).fetchall()
             tags = store.get_passage_tags(conn, pid)
+            sb = conn.execute(
+                "SELECT chapter_id, text FROM blocks WHERE id = ?", (p["start_block"],)).fetchone()
+            link_count = conn.execute(
+                "SELECT COUNT(*) c FROM passage_links "
+                "WHERE from_passage = ? OR to_passage = ?", (pid, pid)).fetchone()["c"]
             d = dict(p)
             d["highlights"] = [dict(h) for h in highlights]
             d["notes"] = [dict(n) for n in notes]
             d["tags"] = [dict(t) for t in tags]
+            d["chapter_id"] = sb["chapter_id"] if sb else None
+            d["preview"] = (sb["text"][p["start_off"]:p["start_off"] + 200] if sb else "")
+            d["link_count"] = link_count
             result.append(d)
         return result
 

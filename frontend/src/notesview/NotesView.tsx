@@ -1,17 +1,12 @@
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
-import {
-  api,
-  subscribeEvents,
-  type Block,
-  type Chapter,
-  type Link,
-  type PassageDetail,
-  type Summary,
-} from '../api/client';
-import { passageText } from '../reader/passageText';
+import { api, subscribeEvents, type Chapter, type PassageDetail, type Summary } from '../api/client';
 import { Markdown } from '../markdown/Markdown';
+import { fuzzyMatch } from './fuzzy';
 import styles from './NotesView.module.css';
+
+type Tab = 'summaries' | 'notes';
+const TAB_KEY = 'folio.notesTab';
 
 export function NotesView() {
   const { bookId } = useParams();
@@ -21,95 +16,90 @@ export function NotesView() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [passages, setPassages] = useState<PassageDetail[]>([]);
   const [summaries, setSummaries] = useState<Summary[]>([]);
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [linksBy, setLinksBy] = useState<Record<number, Link[]>>({});
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>(() => {
+    try { return (localStorage.getItem(TAB_KEY) as Tab) || 'notes'; } catch { return 'notes'; }
+  });
+  const [query, setQuery] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [addChapter, setAddChapter] = useState<number | ''>('');
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [toc, ps, sums, blks] = await Promise.all([
-        api.getToc(id),
-        api.listPassages(id),
-        api.listBookSummaries(id),
-        api.getBlocks(id),
+      const [toc, ps, sums] = await Promise.all([
+        api.getToc(id), api.listPassages(id), api.listBookSummaries(id),
       ]);
-      setChapters(toc);
-      setPassages(ps);
-      setSummaries(sums);
-      setBlocks(blks);
-      const linkLists = await Promise.all(ps.map((p) => api.getLinks(p.id)));
-      const map: Record<number, Link[]> = {};
-      ps.forEach((p, i) => (map[p.id] = linkLists[i]));
-      setLinksBy(map);
-    } catch (e) {
-      setError(String(e));
-    }
+      setChapters(toc); setPassages(ps); setSummaries(sums);
+    } catch (e) { setError(String(e)); }
   }, [id]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // Live sync: reload when data changes elsewhere (e.g. an agent edit via MCP).
+  useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
     const off = subscribeEvents((e) => {
-      if (e.type === 'changed') {
-        clearTimeout(t);
-        t = setTimeout(() => {
-          void load();
-        }, 300);
-      }
+      if (e.type === 'changed') { clearTimeout(t); t = setTimeout(() => { void load(); }, 300); }
     });
-    return () => {
-      clearTimeout(t);
-      off();
-    };
+    return () => { clearTimeout(t); off(); };
   }, [load]);
 
-  const chapterOf = useCallback(
-    (blockId: number) => blocks.find((b) => b.id === blockId)?.chapter_id ?? null,
-    [blocks],
-  );
-  const preview = useCallback(
-    (p: PassageDetail) => passageText(blocks, p).slice(0, 100) || `passage ${p.id}`,
-    [blocks],
-  );
-  const firstBlockOf = useCallback(
-    (chapterId: number) => blocks.find((b) => b.chapter_id === chapterId)?.id ?? null,
-    [blocks],
-  );
+  function selectTab(next: Tab) {
+    setTab(next);
+    try { localStorage.setItem(TAB_KEY, next); } catch { /* ignore */ }
+  }
+  const chapterTitle = useCallback(
+    (cid: number | null) => chapters.find((c) => c.id === cid)?.title ?? null, [chapters]);
+
+  async function createSummaryFor(scope: 'book' | 'chapter', scopeId: number, body: string): Promise<boolean> {
+    try { await api.createSummary(scope, scopeId, body.trim()); await load(); return true; }
+    catch (e) { setError(String(e)); return false; }
+  }
+  async function updateSummaryBody(sid: number, body: string, generatedBy?: string): Promise<boolean> {
+    try { await api.updateSummary(sid, body.trim(), generatedBy); await load(); return true; }
+    catch (e) { setError(String(e)); return false; }
+  }
+  function openInReader(p: PassageDetail) {
+    navigate(`/book/${id}?focus=${p.start_block}${p.chapter_id != null ? `&ch=${p.chapter_id}` : ''}`);
+  }
+  function toggleTag(name: string) {
+    setSelectedTags((cur) => cur.includes(name) ? cur.filter((t) => t !== name) : [...cur, name]);
+  }
 
   const allTags = useMemo(() => {
-    const s = new Set<string>();
-    passages.forEach((p) => p.tags.forEach((t) => s.add(t.name)));
-    return [...s].sort();
+    const counts = new Map<string, number>();
+    passages.forEach((p) => p.tags.forEach((t) => counts.set(t.name, (counts.get(t.name) ?? 0) + 1)));
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [passages]);
 
-  const shown = tagFilter
-    ? passages.filter((p) => p.tags.some((t) => t.name === tagFilter))
-    : passages;
-
-  async function saveSummary(scope: 'book' | 'chapter', scopeId: number, body: string): Promise<boolean> {
-    try {
-      const mine = summaries.filter(
-        (s) => s.scope === scope && s.scope_id === scopeId && s.generated_by === 'user',
-      );
-      await Promise.all(mine.map((s) => api.deleteSummary(s.id)));
-      if (body.trim()) await api.createSummary(scope, scopeId, body.trim());
-      await load();
-      return true;
-    } catch (e) {
-      setError(String(e));
-      return false;
+  const shown = useMemo(() => passages.filter((p) => {
+    if (selectedTags.length && !p.tags.some((t) => selectedTags.includes(t.name))) return false;
+    if (query.trim()) {
+      const hay = [p.preview, ...p.notes.map((n) => n.body), ...p.tags.map((t) => t.name),
+                   chapterTitle(p.chapter_id) ?? ''].join(' \n ');
+      if (!fuzzyMatch(query, hay)) return false;
     }
-  }
+    return true;
+  }), [passages, selectedTags, query, chapterTitle]);
 
-  function openInReader(p: PassageDetail) {
-    const ch = chapterOf(p.start_block);
-    navigate(`/book/${id}?focus=${p.start_block}${ch != null ? `&ch=${ch}` : ''}`);
-  }
+  const groups = useMemo(() => {
+    const order = new Map(chapters.map((c, i) => [c.id, i] as const));
+    const byChapter = new Map<number | null, PassageDetail[]>();
+    shown.forEach((p) => {
+      const k = p.chapter_id ?? null;
+      if (!byChapter.has(k)) byChapter.set(k, []);
+      byChapter.get(k)!.push(p);
+    });
+    return [...byChapter.entries()].sort((a, b) => {
+      const ai = a[0] == null ? Infinity : (order.get(a[0]) ?? Infinity);
+      const bi = b[0] == null ? Infinity : (order.get(b[0]) ?? Infinity);
+      return ai - bi;
+    });
+  }, [shown, chapters]);
+
+  const bookSummaries = summaries.filter((s) => s.scope === 'book' && s.scope_id === id);
+  const chapterSummaryIds = new Set(
+    summaries.filter((s) => s.scope === 'chapter').map((s) => s.scope_id));
+  const chaptersWithSummary = chapters.filter((c) => chapterSummaryIds.has(c.id));
+  const chaptersWithout = chapters.filter((c) => !chapterSummaryIds.has(c.id));
 
   return (
     <main className={styles.notesview}>
@@ -119,85 +109,84 @@ export function NotesView() {
       </header>
       {error && <p role="alert">{error}</p>}
 
-      <section>
-        <h2>Summaries</h2>
-        <SummaryEditor
-          label="Book summary"
-          summaries={summaries.filter((s) => s.scope === 'book' && s.scope_id === id)}
-          onSave={(body) => saveSummary('book', id, body)}
-        />
-        {chapters.map((c) => {
-          const fb = firstBlockOf(c.id);
-          const text = `Chapter: ${c.title}`;
-          const label =
-            fb != null ? (
-              <RouterLink to={`/book/${id}?focus=${fb}&ch=${c.id}`}>{text}</RouterLink>
-            ) : (
-              text
-            );
-          return (
-            <SummaryEditor
-              key={c.id}
-              label={label}
-              summaries={summaries.filter((s) => s.scope === 'chapter' && s.scope_id === c.id)}
-              onSave={(body) => saveSummary('chapter', c.id, body)}
-            />
-          );
-        })}
-      </section>
+      <div role="tablist" className={styles.tabs}>
+        <button role="tab" aria-selected={tab === 'notes'}
+          className={tab === 'notes' ? styles.tabActive : styles.tab}
+          onClick={() => selectTab('notes')}>Notes &amp; Annotations</button>
+        <button role="tab" aria-selected={tab === 'summaries'}
+          className={tab === 'summaries' ? styles.tabActive : styles.tab}
+          onClick={() => selectTab('summaries')}>Summaries</button>
+      </div>
 
-      <section>
-        <h2>Annotations</h2>
-        <div className={styles.filters}>
-          <button
-            className={tagFilter === null ? styles.filterActive : styles.filter}
-            onClick={() => setTagFilter(null)}
-          >
-            All
-          </button>
-          {allTags.map((t) => (
-            <button
-              key={t}
-              className={tagFilter === t ? styles.filterActive : styles.filter}
-              onClick={() => setTagFilter(t)}
-            >
-              {t}
-            </button>
+      {tab === 'summaries' ? (
+        <section>
+          <SummaryEditor label="Book summary" summaries={bookSummaries}
+            onCreate={(b) => createSummaryFor('book', id, b)} onUpdate={updateSummaryBody} />
+          {chaptersWithSummary.map((c) => (
+            <SummaryEditor key={c.id}
+              label={c.first_block_id != null
+                ? <RouterLink to={`/book/${id}?focus=${c.first_block_id}&ch=${c.id}`}>{`Chapter: ${c.title}`}</RouterLink>
+                : `Chapter: ${c.title}`}
+              summaries={summaries.filter((s) => s.scope === 'chapter' && s.scope_id === c.id)}
+              onCreate={(b) => createSummaryFor('chapter', c.id, b)} onUpdate={updateSummaryBody} />
           ))}
-        </div>
-        <ul className={styles.rows}>
-          {shown.map((p) => (
-            <li key={p.id} className={styles.row}>
-              <p className={styles.preview}>{preview(p)}</p>
-              <div className={styles.meta}>
-                {p.highlights.map((h) => (
-                  <span
-                    key={h.id}
-                    className={styles.dot}
-                    style={{ background: `var(--hl-${h.color})` }}
-                  />
+          <div className={styles.addChapter}>
+            <label>
+              Add summary to chapter:{' '}
+              <select aria-label="Add summary to chapter" value={addChapter}
+                onChange={(e) => setAddChapter(e.target.value ? Number(e.target.value) : '')}>
+                <option value="">Select a chapter…</option>
+                {chaptersWithout.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+              </select>
+            </label>
+            {addChapter !== '' && (
+              <SummaryEditor
+                label={`Chapter: ${chapters.find((c) => c.id === addChapter)?.title ?? ''}`}
+                summaries={[]}
+                onCreate={(b) => createSummaryFor('chapter', addChapter as number, b)}
+                onUpdate={updateSummaryBody} />
+            )}
+          </div>
+        </section>
+      ) : (
+        <section>
+          <input className={styles.search} type="search" placeholder="Search notes…"
+            aria-label="Search notes" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <div className={styles.filters}>
+            {allTags.map(([name, count]) => (
+              <label key={name}
+                className={selectedTags.includes(name) ? styles.filterActive : styles.filter}>
+                <input type="checkbox" checked={selectedTags.includes(name)}
+                  onChange={() => toggleTag(name)} /> {name} ({count})
+              </label>
+            ))}
+          </div>
+          {groups.map(([cid, ps]) => (
+            <details key={cid ?? 'none'} open className={styles.group}>
+              <summary className={styles.groupTitle}>
+                {chapterTitle(cid) ?? 'Unassigned'} ({ps.length})
+              </summary>
+              <ul className={styles.rows}>
+                {ps.map((p) => (
+                  <li key={p.id} className={styles.row}>
+                    <p className={styles.preview}>{p.preview || `passage ${p.id}`}</p>
+                    <div className={styles.meta}>
+                      {p.highlights.map((h) => (
+                        <span key={h.id} className={styles.dot}
+                          style={{ background: `var(--hl-${h.color})` }} />
+                      ))}
+                      {p.tags.map((t) => <span key={t.id} className={styles.tag}>{t.name}</span>)}
+                    </div>
+                    {p.notes.map((n) => <Markdown key={n.id} className={styles.note}>{n.body}</Markdown>)}
+                    {p.link_count > 0 && <p className={styles.linkline}>{p.link_count} link(s)</p>}
+                    <button className={styles.open} onClick={() => openInReader(p)}>Open in reader</button>
+                  </li>
                 ))}
-                {p.tags.map((t) => (
-                  <span key={t.id} className={styles.tag}>
-                    {t.name}
-                  </span>
-                ))}
-              </div>
-              {p.notes.map((n) => (
-                <Markdown key={n.id} className={styles.note}>
-                  {n.body}
-                </Markdown>
-              ))}
-              {(linksBy[p.id] ?? []).length > 0 && (
-                <p className={styles.linkline}>{(linksBy[p.id] ?? []).length} link(s)</p>
-              )}
-              <button className={styles.open} onClick={() => openInReader(p)}>
-                Open in reader
-              </button>
-            </li>
+              </ul>
+            </details>
           ))}
-        </ul>
-      </section>
+        </section>
+      )}
     </main>
   );
 }
@@ -205,31 +194,76 @@ export function NotesView() {
 function SummaryEditor({
   label,
   summaries,
-  onSave,
+  onCreate,
+  onUpdate,
 }: {
   label: ReactNode;
   summaries: Summary[];
-  onSave: (body: string) => Promise<boolean>;
+  onCreate: (body: string) => Promise<boolean>;
+  onUpdate: (id: number, body: string, generatedBy?: string) => Promise<boolean>;
 }) {
   const headingId = useId();
-  const mine = summaries.find((s) => s.generated_by === 'user');
-  const agent = summaries.filter((s) => s.generated_by !== 'user');
-  const [body, setBody] = useState(mine?.body ?? '');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingBody, setEditingBody] = useState('');
+  const [draft, setDraft] = useState('');
   const [saved, setSaved] = useState(false);
-  // Summaries arrive after the first render, so the initial useState value is
-  // always '' — sync the textarea when the saved summary loads/changes.
-  useEffect(() => {
-    setBody(mine?.body ?? '');
-  }, [mine?.body]);
+
   return (
     <div className={styles.summary}>
       <h3 id={headingId} className={styles.summaryLabel}>{label}</h3>
+      <ul className={styles.summaryList}>
+        {summaries.map((s) =>
+          editingId === s.id ? (
+            <li key={s.id} className={styles.agentSummary}>
+              <textarea
+                aria-label="Edit summary"
+                className={styles.summaryText}
+                value={editingBody}
+                onChange={(e) => setEditingBody(e.target.value)}
+              />
+              <div className={styles.summaryActions}>
+                <button
+                  className={styles.open}
+                  onClick={async () => {
+                    const body = editingBody.trim();
+                    if (body) {
+                      await onUpdate(s.id, body, s.generated_by !== 'user' ? 'user' : undefined);
+                    }
+                    setEditingId(null);
+                  }}
+                >
+                  Save
+                </button>
+                <button className={styles.open} onClick={() => setEditingId(null)}>
+                  Cancel
+                </button>
+              </div>
+            </li>
+          ) : (
+            <li key={s.id} className={styles.agentSummary}>
+              {s.generated_by !== 'user' && <span className={styles.badge}>agent</span>}
+              <Markdown>{s.body}</Markdown>
+              <button
+                aria-label="Edit summary"
+                className={styles.open}
+                onClick={() => {
+                  setEditingId(s.id);
+                  setEditingBody(s.body);
+                }}
+              >
+                Edit
+              </button>
+            </li>
+          ),
+        )}
+      </ul>
       <textarea
         aria-labelledby={headingId}
         className={styles.summaryText}
-        value={body}
+        placeholder="Add a summary…"
+        value={draft}
         onChange={(e) => {
-          setBody(e.target.value);
+          setDraft(e.target.value);
           setSaved(false);
         }}
       />
@@ -237,23 +271,19 @@ function SummaryEditor({
         <button
           className={styles.open}
           onClick={async () => {
-            if (await onSave(body)) setSaved(true);
+            const body = draft.trim();
+            if (body && (await onCreate(body))) {
+              setDraft('');
+              setSaved(true);
+            }
           }}
         >
           Save
         </button>
         {saved && (
-          <span className={styles.saved} role="status">
-            Saved ✓
-          </span>
+          <span className={styles.saved} role="status">Saved ✓</span>
         )}
       </div>
-      {agent.map((s) => (
-        <div key={s.id} className={styles.agentSummary}>
-          <span className={styles.badge}>agent</span>
-          <Markdown>{s.body}</Markdown>
-        </div>
-      ))}
     </div>
   );
 }

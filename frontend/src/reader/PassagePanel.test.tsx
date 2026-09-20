@@ -9,6 +9,7 @@ const passage: PassageDetail = {
   highlights: [{ id: 1, color: 'yellow' }],
   notes: [{ id: 9, body: 'existing note', created_at: '', updated_at: '' }],
   tags: [{ id: 2, name: 'kant' }],
+  preview: '', chapter_id: null, link_count: 0,
 };
 
 function setup() {
