@@ -9,6 +9,7 @@ setup(
     install_requires=[
         "fastapi", "uvicorn", "pydantic",
         "ebooklib", "beautifulsoup4", "python-multipart", "httpx", "werkzeug",
+        "websockets",
     ],
     entry_points={"console_scripts": ["folio-backend = folio_backend.main:run"]},
 )

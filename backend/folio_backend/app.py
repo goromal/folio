@@ -243,6 +243,24 @@ def create_app(db_path, static_dir=None):
     def delete_summary_ep(summary_id: int, conn=Depends(db)):
         store.delete_summary(conn, summary_id)
 
+    # ---- agent companion config (shared by the terminal proxy and the API router) ----
+    _agents = tuple(os.environ.get("FOLIO_AGENTS", "").replace(",", " ").split())
+    _agent_secrets = os.environ.get("FOLIO_AGENT_SECRETS", "")
+    _companion = bool(_agents and _agent_secrets)
+    _agent_auth = None
+    if _companion:
+        from folio_backend.agent_auth import AgentAuth, load_secrets
+        _key, _pwhash = load_secrets(_agent_secrets)
+        _agent_auth = AgentAuth(_key, _pwhash)
+
+    # ---- agent terminal proxy: MUST precede the /folio static mount so StaticFiles
+    # does not shadow it. Lets the Electron desktop (which loads the SPA from the
+    # backend, bypassing nginx) reach ttyd. ----
+    _terminal_origin = os.environ.get("FOLIO_AGENT_TERMINAL_ORIGIN", "")
+    if _companion and _terminal_origin:
+        from folio_backend.agent_proxy import register_agent_terminal_proxy
+        register_agent_terminal_proxy(app, _agent_auth, _terminal_origin)
+
     # ---- serve built SPA at /folio (env-gated) ----
     resolved_static = static_dir or os.environ.get("FOLIO_STATIC_DIR")
     if resolved_static and os.path.isdir(resolved_static):
@@ -250,19 +268,12 @@ def create_app(db_path, static_dir=None):
         app.mount("/folio", StaticFiles(directory=resolved_static, html=True),
                   name="folio")
 
-    # ---- agent companion (env-gated: needs configured agents + a secrets file) ----
-    # Accept comma- or whitespace-separated agents (systemd Environment= mangles
-    # spaces, so the module passes them comma-joined).
-    _agents = tuple(os.environ.get("FOLIO_AGENTS", "").replace(",", " ").split())
-    _agent_secrets = os.environ.get("FOLIO_AGENT_SECRETS", "")
-    if _agents and _agent_secrets:
+    # ---- agent companion API (env-gated) ----
+    if _companion:
         from folio_backend.agent import AgentSessions
-        from folio_backend.agent_auth import AgentAuth, load_secrets
         from folio_backend.agent_router import create_agent_router
-
         _spool = os.path.abspath(os.environ.get("FOLIO_AGENT_SPOOL", "/tmp/folio-agent"))
         os.makedirs(_spool, mode=0o700, exist_ok=True)
-        _key, _pwhash = load_secrets(_agent_secrets)
         _sessions = AgentSessions(
             agents=_agents, spool_dir=_spool,
             tmux_bin=os.environ.get("FOLIO_AGENT_TMUX", "tmux"),
@@ -270,7 +281,7 @@ def create_app(db_path, static_dir=None):
             session_command=os.environ.get(
                 "FOLIO_AGENT_SESSION_CMD", "folio-agent-session"),
         )
-        app.include_router(create_agent_router(AgentAuth(_key, _pwhash), _sessions))
+        app.include_router(create_agent_router(_agent_auth, _sessions))
 
     # ---- agent view-follow ----
     @app.post("/view/focus")
