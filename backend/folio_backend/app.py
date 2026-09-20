@@ -71,8 +71,10 @@ def create_app(db_path, static_dir=None):
     @app.get("/books/{book_id}/toc", response_model=list[ChapterOut])
     def book_toc(book_id: int, conn=Depends(db)):
         rows = conn.execute(
-            "SELECT id, title, order_idx, parent_id FROM chapters "
-            "WHERE book_id = ? ORDER BY order_idx", (book_id,)).fetchall()
+            "SELECT id, title, order_idx, parent_id, "
+            "(SELECT id FROM blocks WHERE chapter_id = chapters.id "
+            " ORDER BY order_idx LIMIT 1) AS first_block_id "
+            "FROM chapters WHERE book_id = ? ORDER BY order_idx", (book_id,)).fetchall()
         if not rows:
             exists = conn.execute("SELECT 1 FROM books WHERE id = ?",
                                  (book_id,)).fetchone()
@@ -203,10 +205,18 @@ def create_app(db_path, static_dir=None):
                 "SELECT id, body, created_at, updated_at FROM notes "
                 "WHERE passage_id = ? ORDER BY id", (pid,)).fetchall()
             tags = store.get_passage_tags(conn, pid)
+            sb = conn.execute(
+                "SELECT chapter_id, text FROM blocks WHERE id = ?", (p["start_block"],)).fetchone()
+            link_count = conn.execute(
+                "SELECT COUNT(*) c FROM passage_links "
+                "WHERE from_passage = ? OR to_passage = ?", (pid, pid)).fetchone()["c"]
             d = dict(p)
             d["highlights"] = [dict(h) for h in highlights]
             d["notes"] = [dict(n) for n in notes]
             d["tags"] = [dict(t) for t in tags]
+            d["chapter_id"] = sb["chapter_id"] if sb else None
+            d["preview"] = (sb["text"][p["start_off"]:p["start_off"] + 200] if sb else "")
+            d["link_count"] = link_count
             result.append(d)
         return result
 

@@ -13,6 +13,7 @@ class ChapterOut(BaseModel):
     title: str
     order_idx: int
     parent_id: Optional[int] = None
+    first_block_id: Optional[int] = None
 
 
 class BlockOut(BaseModel):
