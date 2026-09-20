@@ -78,6 +78,11 @@ class SummaryIn(BaseModel):
     generated_by: str = "user"
 
 
+class SummaryUpdate(BaseModel):
+    body: str
+    generated_by: str | None = None
+
+
 class FocusIn(BaseModel):
     block_id: int
 

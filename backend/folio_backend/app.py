@@ -17,7 +17,7 @@ from folio_backend.db import connect, init_db
 from folio_backend.models import (
     BookOut, ChapterOut, BlockOut, SearchHit,
     PassageIn, PassageOut, HighlightIn, NoteIn, NoteUpdate, TagIn,
-    LinkIn, SummaryIn, FocusIn, PositionIn, PositionOut, LeaseHolderIn,
+    LinkIn, SummaryIn, SummaryUpdate, FocusIn, PositionIn, PositionOut, LeaseHolderIn,
 )
 from folio_backend.view import ViewState, focus_event_stream, ChangeBroadcastMiddleware
 
@@ -167,6 +167,11 @@ def create_app(db_path, static_dir=None):
     @app.get("/summaries")
     def list_summaries_ep(scope: str, scope_id: int, conn=Depends(db)):
         return [dict(r) for r in store.get_summaries(conn, scope, scope_id)]
+
+    @app.put("/summaries/{summary_id}", status_code=200)
+    def update_summary_ep(summary_id: int, s: SummaryUpdate, conn=Depends(db)):
+        store.update_summary(conn, summary_id, s.body, s.generated_by)
+        return {"id": summary_id}
 
     # ---- annotation lists (MCP + notes view) ----
     @app.get("/books/{book_id}/notes")
