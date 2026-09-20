@@ -1,7 +1,7 @@
 import type { components } from './schema';
 
 export type Book = components['schemas']['BookOut'];
-export type Chapter = components['schemas']['ChapterOut'];
+export type Chapter = components['schemas']['ChapterOut'] & { first_block_id: number | null };
 export type Block = components['schemas']['BlockOut'];
 export type Passage = components['schemas']['PassageOut'];
 export interface Highlight { id: number; color: string }
@@ -13,6 +13,9 @@ export interface PassageDetail extends Passage {
   highlights: Highlight[];
   notes: Note[];
   tags: Tag[];
+  preview: string;
+  chapter_id: number | null;
+  link_count: number;
 }
 
 export interface Link {

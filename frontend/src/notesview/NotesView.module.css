@@ -32,3 +32,10 @@
   margin-top: 0.4rem; cursor: pointer; border: 1px solid var(--accent); background: var(--accent);
   color: #fff; border-radius: 6px; padding: 0.25rem 0.6rem; font: inherit;
 }
+.tabs { display: flex; gap: 0.5rem; margin: 0.75rem 0; }
+.tab, .tabActive { background: none; border: none; padding: 0.4rem 0.2rem; cursor: pointer; color: inherit; }
+.tabActive { font-weight: 600; border-bottom: 2px solid currentColor; }
+.search { width: 100%; box-sizing: border-box; margin: 0.5rem 0; padding: 0.4rem; }
+.group { margin: 0.5rem 0; }
+.groupTitle { cursor: pointer; font-weight: 600; }
+.addChapter { margin-top: 1rem; }

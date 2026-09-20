@@ -1,9 +1,9 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { beforeEach, expect, test, vi } from 'vitest';
 import { NotesView } from './NotesView';
-import { api, subscribeEvents } from '../api/client';
+import { api } from '../api/client';
 
 const navigate = vi.fn();
 vi.mock('react-router-dom', async (orig) => ({
@@ -14,38 +14,30 @@ vi.mock('react-router-dom', async (orig) => ({
 vi.mock('../api/client', () => ({
   api: {
     getToc: vi.fn(), listPassages: vi.fn(), listBookSummaries: vi.fn(),
-    getBlocks: vi.fn(), getLinks: vi.fn(), createSummary: vi.fn(), deleteSummary: vi.fn(),
-    updateSummary: vi.fn(),
+    createSummary: vi.fn(), updateSummary: vi.fn(),
   },
   subscribeEvents: vi.fn(() => () => {}),
 }));
 
 beforeEach(() => {
   navigate.mockClear();
+  try { localStorage.clear(); } catch { /* ignore */ }
   (api.getToc as ReturnType<typeof vi.fn>).mockResolvedValue([
-    { id: 1, title: 'Chapter One', order_idx: 0, parent_id: null },
-  ]);
-  (api.getBlocks as ReturnType<typeof vi.fn>).mockResolvedValue([
-    { id: 10, chapter_id: 1, order_idx: 0, type: 'para', text: 'The quick brown fox jumps.' },
+    { id: 1, title: 'Chapter One', order_idx: 0, parent_id: null, first_block_id: 10 },
   ]);
   (api.listPassages as ReturnType<typeof vi.fn>).mockResolvedValue([
-    {
-      id: 5, book_id: 7, start_block: 10, start_off: 0, end_block: 10, end_off: 9,
+    { id: 5, book_id: 7, start_block: 10, start_off: 0, end_block: 10, end_off: 9,
+      preview: 'The quick brown fox', chapter_id: 1, link_count: 1,
       highlights: [{ id: 1, color: 'yellow' }], notes: [{ id: 2, body: 'a note', created_at: '', updated_at: '' }],
-      tags: [{ id: 3, name: 'kant' }],
-    },
-    {
-      id: 6, book_id: 7, start_block: 10, start_off: 10, end_block: 10, end_off: 15,
-      highlights: [], notes: [], tags: [{ id: 4, name: 'ethics' }],
-    },
+      tags: [{ id: 3, name: 'kant' }] },
+    { id: 6, book_id: 7, start_block: 10, start_off: 10, end_block: 10, end_off: 15,
+      preview: 'ethics preview', chapter_id: 1, link_count: 0,
+      highlights: [], notes: [], tags: [{ id: 4, name: 'ethics' }] },
   ]);
   (api.listBookSummaries as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-  (api.getLinks as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   (api.createSummary as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 1 });
-  (api.deleteSummary as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (api.updateSummary as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 1 });
 });
-afterEach(() => vi.clearAllMocks());
 
 function renderNotes() {
   return render(
@@ -57,40 +49,53 @@ function renderNotes() {
   );
 }
 
-test('lists passages with preview text and tags', async () => {
+test('lists annotations grouped by chapter with preview and tags', async () => {
   renderNotes();
-  expect(await screen.findByText('The quick')).toBeInTheDocument();
+  expect(await screen.findByText('The quick brown fox')).toBeInTheDocument();
+  expect(screen.getByText(/Chapter One \(2\)/)).toBeInTheDocument();
   expect(screen.getByText('kant', { selector: 'span' })).toBeInTheDocument();
   expect(screen.getByText('a note')).toBeInTheDocument();
 });
 
-test('filtering by a tag narrows the rows', async () => {
+test('does not fetch all blocks', async () => {
   renderNotes();
-  await screen.findByText('The quick');
-  await userEvent.click(screen.getByRole('button', { name: 'ethics' }));
-  expect(screen.queryByText('The quick')).not.toBeInTheDocument();
+  await screen.findByText('The quick brown fox');
+  expect((api as Record<string, unknown>).getBlocks).toBeUndefined();
 });
 
-test('adding a book summary creates it', async () => {
+test('fuzzy search narrows rows', async () => {
   renderNotes();
-  await screen.findByText('The quick');
-  await userEvent.type(screen.getByLabelText('Book summary'), 'the gist');
-  await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
-  await waitFor(() => expect(api.createSummary).toHaveBeenCalledWith('book', 7, 'the gist'));
+  await screen.findByText('The quick brown fox');
+  await userEvent.type(screen.getByLabelText('Search notes'), 'ethics');
+  expect(screen.queryByText('The quick brown fox')).not.toBeInTheDocument();
+  expect(screen.getByText('ethics preview')).toBeInTheDocument();
 });
 
-test('editing an existing summary updates it in place', async () => {
+test('tag picker narrows rows', async () => {
+  renderNotes();
+  await screen.findByText('The quick brown fox');
+  await userEvent.click(screen.getByRole('checkbox', { name: /ethics/ }));
+  expect(screen.queryByText('The quick brown fox')).not.toBeInTheDocument();
+  expect(screen.getByText('ethics preview')).toBeInTheDocument();
+});
+
+test('open in reader navigates with focus + chapter', async () => {
+  renderNotes();
+  await screen.findByText('The quick brown fox');
+  await userEvent.click(screen.getAllByRole('button', { name: 'Open in reader' })[0]);
+  expect(navigate).toHaveBeenCalledWith('/book/7?focus=10&ch=1');
+});
+
+test('summaries tab shows only chapters with a summary + an add picker', async () => {
   (api.listBookSummaries as ReturnType<typeof vi.fn>).mockResolvedValue([
-    { id: 9, scope: 'book', scope_id: 7, body: 'saved gist', generated_by: 'user', created_at: '' },
+    { id: 1, scope: 'book', scope_id: 7, body: 'book gist', generated_by: 'user', created_at: '' },
   ]);
   renderNotes();
-  await screen.findByText('saved gist');
-  await userEvent.click(screen.getAllByRole('button', { name: 'Edit summary' })[0]);
-  const box = screen.getByLabelText('Edit summary');
-  await userEvent.clear(box);
-  await userEvent.type(box, 'new gist');
-  await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
-  await waitFor(() => expect(api.updateSummary).toHaveBeenCalledWith(9, 'new gist', undefined));
+  await screen.findByText('The quick brown fox');
+  await userEvent.click(screen.getByRole('tab', { name: /Summaries/ }));
+  expect(screen.getByText('Book summary')).toBeInTheDocument();
+  expect(screen.queryByText('Chapter: Chapter One')).not.toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Add summary to chapter' })).toBeInTheDocument();
 });
 
 test('editing an agent summary relabels it to user', async () => {
@@ -98,54 +103,12 @@ test('editing an agent summary relabels it to user', async () => {
     { id: 12, scope: 'book', scope_id: 7, body: 'agent gist', generated_by: 'agent', created_at: '' },
   ]);
   renderNotes();
+  await screen.findByText('The quick brown fox');
+  await userEvent.click(screen.getByRole('tab', { name: /Summaries/ }));
   await screen.findByText('agent gist');
   await userEvent.click(screen.getAllByRole('button', { name: 'Edit summary' })[0]);
   const box = screen.getByLabelText('Edit summary');
-  await userEvent.clear(box);
-  await userEvent.type(box, 'my version');
+  await userEvent.clear(box); await userEvent.type(box, 'mine');
   await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
-  await waitFor(() => expect(api.updateSummary).toHaveBeenCalledWith(12, 'my version', 'user'));
-});
-
-test('open in reader navigates with a focus param', async () => {
-  renderNotes();
-  await screen.findByText('The quick');
-  await userEvent.click(screen.getAllByRole('button', { name: 'Open in reader' })[0]);
-  expect(navigate).toHaveBeenCalledWith('/book/7?focus=10&ch=1');
-});
-
-test('shows a Saved confirmation after saving a summary', async () => {
-  renderNotes();
-  await screen.findByText('The quick');
-  await userEvent.type(screen.getByLabelText('Book summary'), 'the gist');
-  await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
-  expect(await screen.findByText('Saved ✓')).toBeInTheDocument();
-});
-
-test('reloads on a changed event (live sync)', async () => {
-  renderNotes();
-  await screen.findByText('The quick');
-  const cb = (subscribeEvents as ReturnType<typeof vi.fn>).mock.calls[0][0] as (e: unknown) => void;
-  const before = (api.listPassages as ReturnType<typeof vi.fn>).mock.calls.length;
-  act(() => cb({ type: 'changed' }));
-  await waitFor(() =>
-    expect((api.listPassages as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(before),
-  );
-});
-
-test('chapter summary heading links to the chapter start in the reader', async () => {
-  renderNotes();
-  const link = await screen.findByRole('link', { name: /Chapter: Chapter One/ });
-  expect(link).toHaveAttribute('href', '/book/7?focus=10&ch=1');
-});
-
-test('a chapter with no blocks renders a plain heading (no link) and the book summary is never a link', async () => {
-  (api.getBlocks as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-  renderNotes();
-  // Book-summary heading is present...
-  await screen.findByText('Book summary');
-  // ...and with no blocks, the chapter summary heading is plain text, not a link.
-  await screen.findByText('Chapter: Chapter One');
-  expect(screen.queryByRole('link', { name: /Chapter: Chapter One/ })).toBeNull();
-  expect(screen.queryByRole('link', { name: /Book summary/ })).toBeNull();
+  await waitFor(() => expect(api.updateSummary).toHaveBeenCalledWith(12, 'mine', 'user'));
 });

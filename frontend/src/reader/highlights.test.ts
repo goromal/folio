@@ -16,7 +16,8 @@ const DOC =
 function passage(over: Partial<PassageDetail>): PassageDetail {
   return {
     id: 1, book_id: 7, start_block: 11, start_off: 0, end_block: 11, end_off: 3,
-    highlights: [{ id: 1, color: 'green' }], notes: [], tags: [], ...over,
+    highlights: [{ id: 1, color: 'green' }], notes: [], tags: [],
+    preview: '', chapter_id: null, link_count: 0, ...over,
   };
 }
 
