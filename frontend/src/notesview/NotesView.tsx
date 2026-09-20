@@ -91,13 +91,20 @@ export function NotesView() {
     ? passages.filter((p) => p.tags.some((t) => t.name === tagFilter))
     : passages;
 
-  async function saveSummary(scope: 'book' | 'chapter', scopeId: number, body: string): Promise<boolean> {
+  async function createSummaryFor(scope: 'book' | 'chapter', scopeId: number, body: string): Promise<boolean> {
     try {
-      const mine = summaries.filter(
-        (s) => s.scope === scope && s.scope_id === scopeId && s.generated_by === 'user',
-      );
-      await Promise.all(mine.map((s) => api.deleteSummary(s.id)));
-      if (body.trim()) await api.createSummary(scope, scopeId, body.trim());
+      await api.createSummary(scope, scopeId, body.trim());
+      await load();
+      return true;
+    } catch (e) {
+      setError(String(e));
+      return false;
+    }
+  }
+
+  async function updateSummaryBody(id: number, body: string, generatedBy?: string): Promise<boolean> {
+    try {
+      await api.updateSummary(id, body.trim(), generatedBy);
       await load();
       return true;
     } catch (e) {
@@ -124,7 +131,8 @@ export function NotesView() {
         <SummaryEditor
           label="Book summary"
           summaries={summaries.filter((s) => s.scope === 'book' && s.scope_id === id)}
-          onSave={(body) => saveSummary('book', id, body)}
+          onCreate={(body) => createSummaryFor('book', id, body)}
+          onUpdate={updateSummaryBody}
         />
         {chapters.map((c) => {
           const fb = firstBlockOf(c.id);
@@ -140,7 +148,8 @@ export function NotesView() {
               key={c.id}
               label={label}
               summaries={summaries.filter((s) => s.scope === 'chapter' && s.scope_id === c.id)}
-              onSave={(body) => saveSummary('chapter', c.id, body)}
+              onCreate={(body) => createSummaryFor('chapter', c.id, body)}
+              onUpdate={updateSummaryBody}
             />
           );
         })}
@@ -205,31 +214,76 @@ export function NotesView() {
 function SummaryEditor({
   label,
   summaries,
-  onSave,
+  onCreate,
+  onUpdate,
 }: {
   label: ReactNode;
   summaries: Summary[];
-  onSave: (body: string) => Promise<boolean>;
+  onCreate: (body: string) => Promise<boolean>;
+  onUpdate: (id: number, body: string, generatedBy?: string) => Promise<boolean>;
 }) {
   const headingId = useId();
-  const mine = summaries.find((s) => s.generated_by === 'user');
-  const agent = summaries.filter((s) => s.generated_by !== 'user');
-  const [body, setBody] = useState(mine?.body ?? '');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingBody, setEditingBody] = useState('');
+  const [draft, setDraft] = useState('');
   const [saved, setSaved] = useState(false);
-  // Summaries arrive after the first render, so the initial useState value is
-  // always '' — sync the textarea when the saved summary loads/changes.
-  useEffect(() => {
-    setBody(mine?.body ?? '');
-  }, [mine?.body]);
+
   return (
     <div className={styles.summary}>
       <h3 id={headingId} className={styles.summaryLabel}>{label}</h3>
+      <ul className={styles.summaryList}>
+        {summaries.map((s) =>
+          editingId === s.id ? (
+            <li key={s.id} className={styles.agentSummary}>
+              <textarea
+                aria-label="Edit summary"
+                className={styles.summaryText}
+                value={editingBody}
+                onChange={(e) => setEditingBody(e.target.value)}
+              />
+              <div className={styles.summaryActions}>
+                <button
+                  className={styles.open}
+                  onClick={async () => {
+                    const body = editingBody.trim();
+                    if (body) {
+                      await onUpdate(s.id, body, s.generated_by !== 'user' ? 'user' : undefined);
+                    }
+                    setEditingId(null);
+                  }}
+                >
+                  Save
+                </button>
+                <button className={styles.open} onClick={() => setEditingId(null)}>
+                  Cancel
+                </button>
+              </div>
+            </li>
+          ) : (
+            <li key={s.id} className={styles.agentSummary}>
+              {s.generated_by !== 'user' && <span className={styles.badge}>agent</span>}
+              <Markdown>{s.body}</Markdown>
+              <button
+                aria-label="Edit summary"
+                className={styles.open}
+                onClick={() => {
+                  setEditingId(s.id);
+                  setEditingBody(s.body);
+                }}
+              >
+                Edit
+              </button>
+            </li>
+          ),
+        )}
+      </ul>
       <textarea
         aria-labelledby={headingId}
         className={styles.summaryText}
-        value={body}
+        placeholder="Add a summary…"
+        value={draft}
         onChange={(e) => {
-          setBody(e.target.value);
+          setDraft(e.target.value);
           setSaved(false);
         }}
       />
@@ -237,23 +291,19 @@ function SummaryEditor({
         <button
           className={styles.open}
           onClick={async () => {
-            if (await onSave(body)) setSaved(true);
+            const body = draft.trim();
+            if (body && (await onCreate(body))) {
+              setDraft('');
+              setSaved(true);
+            }
           }}
         >
           Save
         </button>
         {saved && (
-          <span className={styles.saved} role="status">
-            Saved ✓
-          </span>
+          <span className={styles.saved} role="status">Saved ✓</span>
         )}
       </div>
-      {agent.map((s) => (
-        <div key={s.id} className={styles.agentSummary}>
-          <span className={styles.badge}>agent</span>
-          <Markdown>{s.body}</Markdown>
-        </div>
-      ))}
     </div>
   );
 }

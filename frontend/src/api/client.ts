@@ -117,6 +117,8 @@ export const api = {
   createSummary: (scope: 'book' | 'chapter', scopeId: number, body: string) =>
     req<{ id: number }>('/summaries', jsonInit('POST', { scope, scope_id: scopeId, body })),
   deleteSummary: (id: number) => req<void>(`/summaries/${id}`, { method: 'DELETE' }),
+  updateSummary: (id: number, body: string, generatedBy?: string) =>
+    req<{ id: number }>(`/summaries/${id}`, jsonInit('PUT', { body, generated_by: generatedBy })),
   getPosition: (bookId: number) =>
     req<Position | null>(`/books/${bookId}/position`),
   getLastPosition: () => req<Position | null>('/position'),

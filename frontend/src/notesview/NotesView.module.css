@@ -2,6 +2,7 @@
 .head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
 .summary { margin: 0.75rem 0; }
 .summaryLabel { margin: 0 0 0.25rem; font-size: 0.9rem; }
+.summaryList { list-style: none; padding: 0; margin: 0; }
 .summaryText {
   width: 100%; min-height: 3rem; box-sizing: border-box; resize: vertical;
   background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.5rem; font: inherit;

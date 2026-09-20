@@ -15,6 +15,7 @@ vi.mock('../api/client', () => ({
   api: {
     getToc: vi.fn(), listPassages: vi.fn(), listBookSummaries: vi.fn(),
     getBlocks: vi.fn(), getLinks: vi.fn(), createSummary: vi.fn(), deleteSummary: vi.fn(),
+    updateSummary: vi.fn(),
   },
   subscribeEvents: vi.fn(() => () => {}),
 }));
@@ -42,6 +43,7 @@ beforeEach(() => {
   (api.getLinks as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   (api.createSummary as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 1 });
   (api.deleteSummary as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+  (api.updateSummary as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 1 });
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -69,12 +71,40 @@ test('filtering by a tag narrows the rows', async () => {
   expect(screen.queryByText('The quick')).not.toBeInTheDocument();
 });
 
-test('saving the book summary replaces + recreates', async () => {
+test('adding a book summary creates it', async () => {
   renderNotes();
   await screen.findByText('The quick');
   await userEvent.type(screen.getByLabelText('Book summary'), 'the gist');
   await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
   await waitFor(() => expect(api.createSummary).toHaveBeenCalledWith('book', 7, 'the gist'));
+});
+
+test('editing an existing summary updates it in place', async () => {
+  (api.listBookSummaries as ReturnType<typeof vi.fn>).mockResolvedValue([
+    { id: 9, scope: 'book', scope_id: 7, body: 'saved gist', generated_by: 'user', created_at: '' },
+  ]);
+  renderNotes();
+  await screen.findByText('saved gist');
+  await userEvent.click(screen.getAllByRole('button', { name: 'Edit summary' })[0]);
+  const box = screen.getByLabelText('Edit summary');
+  await userEvent.clear(box);
+  await userEvent.type(box, 'new gist');
+  await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
+  await waitFor(() => expect(api.updateSummary).toHaveBeenCalledWith(9, 'new gist', undefined));
+});
+
+test('editing an agent summary relabels it to user', async () => {
+  (api.listBookSummaries as ReturnType<typeof vi.fn>).mockResolvedValue([
+    { id: 12, scope: 'book', scope_id: 7, body: 'agent gist', generated_by: 'agent', created_at: '' },
+  ]);
+  renderNotes();
+  await screen.findByText('agent gist');
+  await userEvent.click(screen.getAllByRole('button', { name: 'Edit summary' })[0]);
+  const box = screen.getByLabelText('Edit summary');
+  await userEvent.clear(box);
+  await userEvent.type(box, 'my version');
+  await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
+  await waitFor(() => expect(api.updateSummary).toHaveBeenCalledWith(12, 'my version', 'user'));
 });
 
 test('open in reader navigates with a focus param', async () => {
@@ -90,16 +120,6 @@ test('shows a Saved confirmation after saving a summary', async () => {
   await userEvent.type(screen.getByLabelText('Book summary'), 'the gist');
   await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
   expect(await screen.findByText('Saved ✓')).toBeInTheDocument();
-});
-
-test('an existing user summary prefills the editor after load', async () => {
-  (api.listBookSummaries as ReturnType<typeof vi.fn>).mockResolvedValue([
-    { id: 1, scope: 'book', scope_id: 7, body: 'saved gist', generated_by: 'user', created_at: '' },
-  ]);
-  renderNotes();
-  await waitFor(() =>
-    expect((screen.getByLabelText('Book summary') as HTMLTextAreaElement).value).toBe('saved gist'),
-  );
 });
 
 test('reloads on a changed event (live sync)', async () => {
