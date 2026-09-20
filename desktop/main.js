@@ -25,6 +25,12 @@ function createWindow() {
     },
   });
   win.loadURL(URL);
+  // The agent terminal iframe (ttyd) registers a `beforeunload` "leave alert".
+  // In Electron a beforeunload that returns a value silently cancels the window
+  // close, so the shell becomes unclosable once a terminal is open. Override it:
+  // let the window close anyway (agent tmux sessions persist independently of the
+  // shell, so nothing is lost). The web keeps ttyd's warning.
+  win.webContents.on('will-prevent-unload', (event) => event.preventDefault());
   // Open external links (e.g. an exported Notion URL) in the system browser,
   // not inside the shell.
   win.webContents.setWindowOpenHandler(({ url }) => {
