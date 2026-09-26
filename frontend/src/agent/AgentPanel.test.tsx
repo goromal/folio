@@ -33,8 +33,25 @@ test('login then pick agent renders the terminal iframe', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Unlock' }));
   const claude = await screen.findByRole('button', { name: 'claude' });
   await userEvent.click(claude);
-  const frame = await screen.findByTitle('Agent terminal');
+  const frame = await screen.findByTitle<HTMLIFrameElement>('Agent terminal');
   expect(frame.getAttribute('src')).toContain('/folio/agent/terminal/?arg=folio-agent--claude--0123abcd');
+  expect(screen.getByRole('navigation', { name: 'Terminal keys' })).toBeInTheDocument();
+  const arrowUp = screen.getByRole('button', { name: 'ArrowUp' });
+  expect(arrowUp).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Paste' })).toBeInTheDocument();
+
+  const frameDocument = frame.contentDocument!;
+  if (!frameDocument.documentElement) frameDocument.appendChild(frameDocument.createElement('html'));
+  const helper = frameDocument.createElement('textarea');
+  helper.className = 'xterm-helper-textarea';
+  frameDocument.documentElement.appendChild(helper);
+  const keydown = vi.fn();
+  helper.addEventListener('keydown', keydown);
+  await userEvent.click(arrowUp);
+  expect(keydown).toHaveBeenCalledOnce();
+  expect((keydown.mock.calls[0][0] as KeyboardEvent).key).toBe('ArrowUp');
+  expect((keydown.mock.calls[0][0] as KeyboardEvent).keyCode).toBe(38);
 });
 
 test('reattaches an existing session without the picker', async () => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { agentApi, AgentError, type AgentSession } from '../api/client';
-import { installTouchScroll } from './touchScroll';
+import { installTerminalControls, type TerminalControls } from './terminalControls';
 import styles from './AgentPanel.module.css';
 
 const STORAGE_KEY = 'folio.agentSession';
@@ -41,12 +41,31 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
   const [busy, setBusy] = useState(false);
   const initialized = useRef(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const controlsRef = useRef<TerminalControls | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [copyLabel, setCopyLabel] = useState('Copy');
+  const [pasteLabel, setPasteLabel] = useState('Paste');
 
-  // Finger-drag scrollback over the ttyd iframe (same-origin), mirroring Agent UI.
+  // Same-origin ttyd controls and touch gestures, mirroring Agent UI.
   useEffect(() => {
     if (phase !== 'session' || !frameRef.current) return;
-    return installTouchScroll(frameRef.current);
+    const installed = installTerminalControls(frameRef.current, setSelecting);
+    controlsRef.current = installed.controls;
+    return () => {
+      controlsRef.current = null;
+      installed.cleanup();
+    };
   }, [phase, session]);
+
+  const flashResult = async (
+    action: (() => Promise<string>) | undefined,
+    setLabel: (label: string) => void,
+    original: string,
+  ) => {
+    if (!action) return;
+    setLabel(await action());
+    window.setTimeout(() => setLabel(original), 1200);
+  };
 
   const enterAuthed = useCallback(async (nextCsrf: string, nextAgents: string[]) => {
     setCsrf(nextCsrf);
@@ -198,6 +217,33 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
             title="Agent terminal"
             src={`/folio/agent/terminal/?arg=${encodeURIComponent(session)}`}
           />
+          <nav className={styles.keys} aria-label="Terminal keys">
+            <button
+              type="button" className={selecting ? styles.active : undefined}
+              aria-pressed={selecting} title="Drag across terminal text to select it"
+              onClick={() => controlsRef.current?.toggleSelection()}
+            >
+              {selecting ? 'Drag text' : 'Select'}
+            </button>
+            <button type="button" onClick={() => flashResult(
+              controlsRef.current?.copy.bind(controlsRef.current), setCopyLabel, 'Copy',
+            )}>{copyLabel}</button>
+            <button type="button" onClick={() => flashResult(
+              controlsRef.current?.paste.bind(controlsRef.current), setPasteLabel, 'Paste',
+            )}>{pasteLabel}</button>
+            {[
+              ['Esc', 'Escape', 27], ['Tab', 'Tab', 9], ['↑', 'ArrowUp', 38],
+              ['↓', 'ArrowDown', 40], ['←', 'ArrowLeft', 37], ['→', 'ArrowRight', 39],
+              ['↵', 'Enter', 13],
+            ].map(([label, key, code]) => (
+              <button key={key} type="button" aria-label={String(key)} onClick={() =>
+                controlsRef.current?.sendKey(String(key), Number(code))
+              }>{label}</button>
+            ))}
+            <button type="button" aria-label="Control C" onClick={() =>
+              controlsRef.current?.sendKey('c', 67, true)
+            }>^C</button>
+          </nav>
         </div>
       )}
     </section>
