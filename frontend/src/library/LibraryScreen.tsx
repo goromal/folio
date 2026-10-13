@@ -37,6 +37,9 @@ export function LibraryScreen() {
   return (
     <main className={styles.library}>
       <UploadDropzone onUploaded={refresh} />
+      <p className={styles.resume}>
+        <Link to="/notes" className={styles.allNotes}>All notes &amp; tags →</Link>
+      </p>
       {lastBookId != null && books.some((b) => b.id === lastBookId) && (
         <p className={styles.resume}>
           <Link to={`/book/${lastBookId}`}>

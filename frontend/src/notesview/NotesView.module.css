@@ -39,3 +39,4 @@
 .group { margin: 0.5rem 0; }
 .groupTitle { cursor: pointer; font-weight: 600; }
 .addChapter { margin-top: 1rem; }
+.bookline { margin: 0 0 0.25rem; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }

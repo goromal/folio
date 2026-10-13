@@ -3,6 +3,12 @@ import type { Link, PassageDetail } from '../api/client';
 import { Markdown } from '../markdown/Markdown';
 import styles from './PassagePanel.module.css';
 
+export interface LinkTarget {
+  id: number;
+  preview: string;
+  chapter?: string | null;
+}
+
 export function PassagePanel({
   passage,
   onAddNote,
@@ -24,7 +30,7 @@ export function PassagePanel({
   onDelete: () => void;
   onClose: () => void;
   links: Link[];
-  linkTargets: { id: number; preview: string }[];
+  linkTargets: LinkTarget[];
   onCreateLink: (toPassageId: number) => void;
   onRemoveLink: (linkId: number) => void;
 }) {
@@ -32,6 +38,10 @@ export function PassagePanel({
   const [tag, setTag] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingBody, setEditingBody] = useState('');
+  const [picking, setPicking] = useState(false);
+  const linkedIds = new Set(
+    links.map((l) => (l.from_passage === passage.id ? l.to_passage : l.from_passage)),
+  );
 
   return (
     <aside aria-label="Passage" className={styles.panel}>
@@ -164,7 +174,20 @@ export function PassagePanel({
             );
           })}
         </ul>
-        <LinkPicker targets={linkTargets} onPick={onCreateLink} />
+        <button className={styles.secondary} onClick={() => setPicking(true)}>
+          + New link
+        </button>
+        {picking && (
+          <LinkPicker
+            // Only offer passages this one isn't already linked to.
+            targets={linkTargets.filter((t) => !linkedIds.has(t.id))}
+            onPick={(toId) => {
+              onCreateLink(toId);
+              setPicking(false);
+            }}
+            onCancel={() => setPicking(false)}
+          />
+        )}
       </section>
 
       <footer className={styles.footer}>
@@ -179,38 +202,62 @@ export function PassagePanel({
 function LinkPicker({
   targets,
   onPick,
+  onCancel,
 }: {
-  targets: { id: number; preview: string }[];
+  targets: LinkTarget[];
   onPick: (id: number) => void;
+  onCancel: () => void;
 }) {
   const [q, setQ] = useState('');
-  const filtered = q
-    ? targets.filter((t) => t.preview.toLowerCase().includes(q.toLowerCase()))
+  // Matches the passage text or its chapter title.
+  const needle = q.trim().toLowerCase();
+  const filtered = needle
+    ? targets.filter((t) =>
+        t.preview.toLowerCase().includes(needle) ||
+        (t.chapter ?? '').toLowerCase().includes(needle))
     : targets;
   return (
-    <div className={styles.tagAdd}>
-      <input
-        aria-label="Link to passage"
-        className={styles.input}
-        placeholder="Link to…"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
-      <ul className={styles.notes}>
-        {filtered.slice(0, 8).map((t) => (
-          <li key={t.id}>
-            <button
-              className={styles.noteEdit}
-              onClick={() => {
-                onPick(t.id);
-                setQ('');
-              }}
-            >
-              {t.preview}
-            </button>
-          </li>
-        ))}
-      </ul>
+    <div
+      className={styles.backdrop}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="New link"
+        className={styles.dialog}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onCancel();
+        }}
+      >
+        <header className={styles.header}>
+          <h2 className={styles.title}>Link to passage</h2>
+          <button aria-label="Cancel link" className={styles.close} onClick={onCancel}>
+            ×
+          </button>
+        </header>
+        <input
+          aria-label="Filter passages"
+          className={styles.input}
+          placeholder="Filter by text or chapter…"
+          autoFocus
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        {filtered.length === 0 && <p className={styles.empty}>No candidate passages.</p>}
+        <ul className={styles.candidates}>
+          {filtered.map((t) => (
+            <li key={t.id}>
+              <button className={styles.candidate} onClick={() => onPick(t.id)}>
+                {t.chapter && <span className={styles.candidateChapter}>{t.chapter}</span>}
+                {t.preview}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

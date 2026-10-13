@@ -94,6 +94,7 @@ export const api = {
       `/books/${id}/blocks${chapterId != null ? `?chapter_id=${chapterId}` : ''}`,
     ),
   listPassages: (bookId: number) => req<PassageDetail[]>(`/books/${bookId}/passages`),
+  listAllPassages: () => req<PassageDetail[]>('/passages'),
   getPassage: (id: number) => req<PassageDetail>(`/passages/${id}`),
   createPassage: (a: PassageAnchorInput) => req<Passage>('/passages', jsonInit('POST', a)),
   addHighlight: (passageId: number, color: string) =>

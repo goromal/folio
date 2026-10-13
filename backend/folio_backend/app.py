@@ -195,6 +195,15 @@ def create_app(db_path, static_dir=None):
     def list_book_passages(book_id: int, conn=Depends(db)):
         prows = conn.execute(
             "SELECT * FROM passages WHERE book_id = ? ORDER BY id", (book_id,)).fetchall()
+        return _enrich_passages(conn, prows)
+
+    # Every passage across all books — the global notes & tags view.
+    @app.get("/passages")
+    def list_all_passages(conn=Depends(db)):
+        prows = conn.execute("SELECT * FROM passages ORDER BY book_id, id").fetchall()
+        return _enrich_passages(conn, prows)
+
+    def _enrich_passages(conn, prows):
         result = []
         for p in prows:
             pid = p["id"]
