@@ -78,11 +78,58 @@ test('shows a link with its target preview and can remove it', async () => {
   expect(h.onRemoveLink).toHaveBeenCalledWith(3);
 });
 
-test('the link picker filters and creates a link', async () => {
+test('the panel lists only this passage\'s links; candidates appear only in the picker', async () => {
+  render(
+    <PassagePanel
+      passage={passage}
+      links={[{ id: 3, from_passage: 5, to_passage: 8, note: null }]}
+      linkTargets={[
+        { id: 8, preview: 'the categorical imperative' },
+        { id: 9, preview: 'the kingdom of ends' },
+      ]}
+      onAddNote={vi.fn()} onEditNote={vi.fn()} onAddTag={vi.fn()} onRemoveTag={vi.fn()}
+      onDelete={vi.fn()} onClose={vi.fn()} onCreateLink={vi.fn()} onRemoveLink={vi.fn()}
+    />,
+  );
+  expect(screen.queryByText('the kingdom of ends')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: '+ New link' }));
+  const dialog = screen.getByRole('dialog', { name: 'New link' });
+  expect(dialog).toHaveTextContent('the kingdom of ends');
+  // Already-linked passages aren't offered again.
+  expect(dialog).not.toHaveTextContent('the categorical imperative');
+});
+
+test('the link picker filters, creates a link, and closes', async () => {
   const h = setup();
-  await userEvent.type(screen.getByLabelText('Link to passage'), 'categorical');
-  await userEvent.click(screen.getByRole('button', { name: 'the categorical imperative' }));
-  expect(h.onCreateLink).toHaveBeenCalledWith(8);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: '+ New link' }));
+  // passage 8 is already linked, so the only target is filtered out.
+  expect(screen.getByText('No candidate passages.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel link' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(h.onCreateLink).not.toHaveBeenCalled();
+});
+
+test('picking a candidate calls onCreateLink', async () => {
+  const onCreateLink = vi.fn();
+  render(
+    <PassagePanel
+      passage={passage}
+      links={[]}
+      linkTargets={[
+        { id: 8, preview: 'the categorical imperative' },
+        { id: 9, preview: 'the kingdom of ends' },
+      ]}
+      onAddNote={vi.fn()} onEditNote={vi.fn()} onAddTag={vi.fn()} onRemoveTag={vi.fn()}
+      onDelete={vi.fn()} onClose={vi.fn()} onCreateLink={onCreateLink} onRemoveLink={vi.fn()}
+    />,
+  );
+  await userEvent.click(screen.getByRole('button', { name: '+ New link' }));
+  await userEvent.type(screen.getByLabelText('Filter passages'), 'kingdom');
+  expect(screen.queryByRole('button', { name: 'the categorical imperative' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'the kingdom of ends' }));
+  expect(onCreateLink).toHaveBeenCalledWith(9);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
 test('shows the other end when this passage is the link target (bidirectional)', () => {

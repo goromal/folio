@@ -5,6 +5,7 @@ import { ThemeControls } from './theme/ThemeControls';
 import { LibraryScreen } from './library/LibraryScreen';
 import { ReaderShell } from './reader/ReaderShell';
 import { NotesView } from './notesview/NotesView';
+import { GlobalNotesView } from './notesview/GlobalNotesView';
 import { LeaseBanner } from './lease/LeaseBanner';
 import { AgentPanel } from './agent/AgentPanel';
 import { useMediaQuery } from './agent/useMediaQuery';
@@ -52,6 +53,7 @@ export function App() {
             <Routes>
               <Route path="/" element={<LibraryScreen />} />
               <Route path="/book/:bookId" element={<ReaderShell />} />
+              <Route path="/notes" element={<GlobalNotesView />} />
               <Route path="/book/:bookId/notes" element={<NotesView />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

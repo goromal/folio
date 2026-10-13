@@ -34,6 +34,24 @@ class NotesPageEnrichmentTest(unittest.TestCase):
         self.assertEqual(row["chapter_id"], self.chap)
         self.assertEqual(row["link_count"], 1)
 
+    def test_all_passages_spans_books(self):
+        self.conn.execute("INSERT INTO books (title, source_hash, created_at) VALUES ('B2','h2','t')")
+        b2 = self.conn.execute("SELECT id FROM books WHERE title = 'B2'").fetchone()["id"]
+        self.conn.execute(
+            "INSERT INTO blocks (book_id, chapter_id, order_idx, type, text) VALUES (?,NULL,0,'para',?)",
+            (b2, "Second book text."))
+        blk2 = self.conn.execute("SELECT id FROM blocks WHERE book_id = ?", (b2,)).fetchone()["id"]
+        self.conn.commit()
+        p3 = store.create_passage(self.conn, b2, blk2, 0, blk2, 6)
+        store.tag_passage(self.conn, p3, store.add_tag(self.conn, "shared"))
+        store.tag_passage(self.conn, self.p1, store.add_tag(self.conn, "shared"))
+        rows = self.client.get("/passages").json()
+        self.assertEqual({r["book_id"] for r in rows}, {self.book, b2})
+        row = next(r for r in rows if r["id"] == p3)
+        self.assertEqual(row["preview"], "Second book text.")
+        self.assertEqual([t["name"] for t in row["tags"]], ["shared"])
+        self.assertEqual(row["link_count"], 0)
+
     def test_toc_has_first_block(self):
         toc = self.client.get(f"/books/{self.book}/toc").json()
         self.assertEqual(toc[0]["first_block_id"], self.block)
