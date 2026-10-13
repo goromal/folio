@@ -3,6 +3,12 @@ import type { Link, PassageDetail } from '../api/client';
 import { Markdown } from '../markdown/Markdown';
 import styles from './PassagePanel.module.css';
 
+export interface LinkTarget {
+  id: number;
+  preview: string;
+  chapter?: string | null;
+}
+
 export function PassagePanel({
   passage,
   onAddNote,
@@ -24,7 +30,7 @@ export function PassagePanel({
   onDelete: () => void;
   onClose: () => void;
   links: Link[];
-  linkTargets: { id: number; preview: string }[];
+  linkTargets: LinkTarget[];
   onCreateLink: (toPassageId: number) => void;
   onRemoveLink: (linkId: number) => void;
 }) {
@@ -198,13 +204,17 @@ function LinkPicker({
   onPick,
   onCancel,
 }: {
-  targets: { id: number; preview: string }[];
+  targets: LinkTarget[];
   onPick: (id: number) => void;
   onCancel: () => void;
 }) {
   const [q, setQ] = useState('');
-  const filtered = q
-    ? targets.filter((t) => t.preview.toLowerCase().includes(q.toLowerCase()))
+  // Matches the passage text or its chapter title.
+  const needle = q.trim().toLowerCase();
+  const filtered = needle
+    ? targets.filter((t) =>
+        t.preview.toLowerCase().includes(needle) ||
+        (t.chapter ?? '').toLowerCase().includes(needle))
     : targets;
   return (
     <div
@@ -231,7 +241,7 @@ function LinkPicker({
         <input
           aria-label="Filter passages"
           className={styles.input}
-          placeholder="Filter…"
+          placeholder="Filter by text or chapter…"
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -241,6 +251,7 @@ function LinkPicker({
           {filtered.map((t) => (
             <li key={t.id}>
               <button className={styles.candidate} onClick={() => onPick(t.id)}>
+                {t.chapter && <span className={styles.candidateChapter}>{t.chapter}</span>}
                 {t.preview}
               </button>
             </li>

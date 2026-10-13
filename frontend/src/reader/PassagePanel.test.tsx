@@ -110,6 +110,27 @@ test('the link picker filters, creates a link, and closes', async () => {
   expect(h.onCreateLink).not.toHaveBeenCalled();
 });
 
+test('the link picker also filters by chapter title', async () => {
+  render(
+    <PassagePanel
+      passage={passage}
+      links={[]}
+      linkTargets={[
+        { id: 8, preview: 'the categorical imperative', chapter: 'Section One' },
+        { id: 9, preview: 'the kingdom of ends', chapter: 'Section Two' },
+      ]}
+      onAddNote={vi.fn()} onEditNote={vi.fn()} onAddTag={vi.fn()} onRemoveTag={vi.fn()}
+      onDelete={vi.fn()} onClose={vi.fn()} onCreateLink={vi.fn()} onRemoveLink={vi.fn()}
+    />,
+  );
+  await userEvent.click(screen.getByRole('button', { name: '+ New link' }));
+  const dialog = screen.getByRole('dialog', { name: 'New link' });
+  expect(dialog).toHaveTextContent('Section One');
+  await userEvent.type(screen.getByLabelText('Filter passages'), 'section two');
+  expect(dialog).not.toHaveTextContent('the categorical imperative');
+  expect(dialog).toHaveTextContent('the kingdom of ends');
+});
+
 test('picking a candidate calls onCreateLink', async () => {
   const onCreateLink = vi.fn();
   render(
@@ -127,7 +148,7 @@ test('picking a candidate calls onCreateLink', async () => {
   await userEvent.click(screen.getByRole('button', { name: '+ New link' }));
   await userEvent.type(screen.getByLabelText('Filter passages'), 'kingdom');
   expect(screen.queryByRole('button', { name: 'the categorical imperative' })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'the kingdom of ends' }));
+  await userEvent.click(screen.getByRole('button', { name: /the kingdom of ends/ }));
   expect(onCreateLink).toHaveBeenCalledWith(9);
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });

@@ -258,7 +258,11 @@ export function ReaderShell() {
   const linkTargets = openPassage
     ? passages
         .filter((p) => p.id !== openPassage.id)
-        .map((p) => ({ id: p.id, preview: passageText(allBlocks, p).slice(0, 80) || `passage ${p.id}` }))
+        .map((p) => ({
+          id: p.id,
+          preview: passageText(allBlocks, p).slice(0, 80) || `passage ${p.id}`,
+          chapter: chapters.find((c) => c.id === p.chapter_id)?.title ?? null,
+        }))
     : [];
 
   return (
