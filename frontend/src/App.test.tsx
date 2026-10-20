@@ -7,7 +7,7 @@ vi.mock('./api/client', async (importActual) => {
   const actual = await importActual<typeof import('./api/client')>();
   return {
     ...actual, // keep AgentError et al. real
-    api: { listBooks: vi.fn(), deleteBook: vi.fn(), getToc: vi.fn(), getBlocks: vi.fn(), getLastPosition: vi.fn(), getLease: vi.fn() },
+    api: { listBooks: vi.fn(), deleteBook: vi.fn(), getToc: vi.fn(), getBlocks: vi.fn(), getLastPosition: vi.fn(), getLease: vi.fn(), listShelves: vi.fn().mockResolvedValue([]) },
     agentApi: {
       authCheck: vi.fn().mockResolvedValue(false), login: vi.fn(), config: vi.fn(),
       listSessions: vi.fn().mockResolvedValue([]), spawn: vi.fn(), kill: vi.fn(),

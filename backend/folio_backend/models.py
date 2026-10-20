@@ -6,6 +6,23 @@ class BookOut(BaseModel):
     id: int
     title: str
     author: Optional[str] = None
+    created_at: Optional[str] = None
+    last_read_at: Optional[str] = None
+    shelf_ids: list[int] = []
+
+
+class ShelfIn(BaseModel):
+    name: str
+
+
+class ShelfOut(BaseModel):
+    id: int
+    name: str
+    book_count: int = 0
+
+
+class BookShelvesIn(BaseModel):
+    shelf_ids: list[int]
 
 
 class ChapterOut(BaseModel):

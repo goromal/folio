@@ -79,6 +79,192 @@
         }
       }
     },
+    "/shelves": {
+      "get": {
+        "summary": "List Shelves Ep",
+        "operationId": "list_shelves_ep_shelves_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ShelfOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Shelves Ep Shelves Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Shelf Ep",
+        "operationId": "create_shelf_ep_shelves_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShelfIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shelves/{shelf_id}": {
+      "put": {
+        "summary": "Rename Shelf Ep",
+        "operationId": "rename_shelf_ep_shelves__shelf_id__put",
+        "parameters": [
+          {
+            "name": "shelf_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Shelf Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShelfIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Shelf Ep",
+        "operationId": "delete_shelf_ep_shelves__shelf_id__delete",
+        "parameters": [
+          {
+            "name": "shelf_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Shelf Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/books/{book_id}/shelves": {
+      "put": {
+        "summary": "Set Book Shelves Ep",
+        "operationId": "set_book_shelves_ep_books__book_id__shelves_put",
+        "parameters": [
+          {
+            "name": "book_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Book Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookShelvesIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/books/{book_id}/toc": {
       "get": {
         "summary": "Book Toc",
@@ -244,6 +430,20 @@
       }
     },
     "/passages": {
+      "get": {
+        "summary": "List All Passages",
+        "operationId": "list_all_passages_passages_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
       "post": {
         "summary": "Create Passage Ep",
         "operationId": "create_passage_ep_passages_post",
@@ -717,6 +917,83 @@
         }
       }
     },
+    "/summaries/{summary_id}": {
+      "put": {
+        "summary": "Update Summary Ep",
+        "operationId": "update_summary_ep_summaries__summary_id__put",
+        "parameters": [
+          {
+            "name": "summary_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Summary Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SummaryUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Summary Ep",
+        "operationId": "delete_summary_ep_summaries__summary_id__delete",
+        "parameters": [
+          {
+            "name": "summary_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Summary Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/books/{book_id}/notes": {
       "get": {
         "summary": "List Book Notes",
@@ -981,38 +1258,6 @@
         }
       }
     },
-    "/summaries/{summary_id}": {
-      "delete": {
-        "summary": "Delete Summary Ep",
-        "operationId": "delete_summary_ep_summaries__summary_id__delete",
-        "parameters": [
-          {
-            "name": "summary_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Summary Id"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/view/focus": {
       "post": {
         "summary": "Set View Focus",
@@ -1164,6 +1409,76 @@
           }
         }
       }
+    },
+    "/lease": {
+      "get": {
+        "summary": "Lease Status",
+        "operationId": "lease_status_lease_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lease/acquire": {
+      "post": {
+        "summary": "Lease Acquire",
+        "operationId": "lease_acquire_lease_acquire_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lease/release": {
+      "post": {
+        "summary": "Lease Release",
+        "operationId": "lease_release_lease_release_post",
+        "parameters": [
+          {
+            "name": "discard",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Discard"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1212,7 +1527,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           }
         },
@@ -1242,6 +1557,36 @@
               }
             ],
             "title": "Author"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "last_read_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Read At"
+          },
+          "shelf_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Shelf Ids",
+            "default": []
           }
         },
         "type": "object",
@@ -1250,6 +1595,22 @@
           "title"
         ],
         "title": "BookOut"
+      },
+      "BookShelvesIn": {
+        "properties": {
+          "shelf_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Shelf Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "shelf_ids"
+        ],
+        "title": "BookShelvesIn"
       },
       "ChapterOut": {
         "properties": {
@@ -1275,6 +1636,17 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "first_block_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Block Id"
           }
         },
         "type": "object",
@@ -1579,6 +1951,42 @@
         ],
         "title": "SearchHit"
       },
+      "ShelfIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ShelfIn"
+      },
+      "ShelfOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "book_count": {
+            "type": "integer",
+            "title": "Book Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "ShelfOut"
+      },
       "SummaryIn": {
         "properties": {
           "scope": {
@@ -1606,6 +2014,30 @@
           "body"
         ],
         "title": "SummaryIn"
+      },
+      "SummaryUpdate": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "generated_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "SummaryUpdate"
       },
       "TagIn": {
         "properties": {
@@ -1643,6 +2075,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

@@ -105,6 +105,20 @@ CREATE TABLE IF NOT EXISTS reading_position (
     updated_at TEXT NOT NULL
 );
 
+-- Library shelves: user-named, many-to-many with books (a book may sit on
+-- several shelves, like Google Play Books). Purely organizational.
+CREATE TABLE IF NOT EXISTS shelves (
+    id         INTEGER PRIMARY KEY,
+    name       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS book_shelves (
+    book_id  INTEGER NOT NULL REFERENCES books(id)   ON DELETE CASCADE,
+    shelf_id INTEGER NOT NULL REFERENCES shelves(id) ON DELETE CASCADE,
+    PRIMARY KEY (book_id, shelf_id)
+);
+
 -- Whole-database lease: the single writability rule. holder = the machine name
 -- allowed to write; NULL = free (read-only everywhere). The row travels with the
 -- DB when it is copied between hub and spokes, so enforcement is identical on both.
