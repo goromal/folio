@@ -1,6 +1,7 @@
 import type { components } from './schema';
 
 export type Book = components['schemas']['BookOut'];
+export type Shelf = components['schemas']['ShelfOut'];
 export type Chapter = components['schemas']['ChapterOut'] & { first_block_id: number | null };
 export type Block = components['schemas']['BlockOut'];
 export type Passage = components['schemas']['PassageOut'];
@@ -88,6 +89,12 @@ export const api = {
     return req<Book>('/books', { method: 'POST', body: fd });
   },
   deleteBook: (id: number) => req<void>(`/books/${id}`, { method: 'DELETE' }),
+  listShelves: () => req<Shelf[]>('/shelves'),
+  createShelf: (name: string) => req<Shelf>('/shelves', jsonInit('POST', { name })),
+  renameShelf: (id: number, name: string) => req<Shelf>(`/shelves/${id}`, jsonInit('PUT', { name })),
+  deleteShelf: (id: number) => req<void>(`/shelves/${id}`, { method: 'DELETE' }),
+  setBookShelves: (bookId: number, shelfIds: number[]) =>
+    req<Book>(`/books/${bookId}/shelves`, jsonInit('PUT', { shelf_ids: shelfIds })),
   getToc: (id: number) => req<Chapter[]>(`/books/${id}/toc`),
   getBlocks: (id: number, chapterId?: number) =>
     req<Block[]>(

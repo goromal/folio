@@ -20,6 +20,7 @@ Env vars: `FOLIO_DB` (default `/var/lib/folio/folio.db`), `FOLIO_HOST`
 
 - `GET  /health`
 - `POST /books` (EPUB upload) · `GET /books` · `GET /books/{id}/toc`
+- `GET/POST /shelves` · `PUT/DELETE /shelves/{id}` · `PUT /books/{id}/shelves` (replace a book's shelf set; `GET /books` returns `shelf_ids`, `created_at`, `last_read_at`)
 - `GET  /books/{id}/blocks[?chapter_id=]` · `GET /books/{id}/blocks/search?q=`
 - `POST /passages` · `GET /passages` (all books, enriched like `/books/{id}/passages`) · `GET /passages/{id}` (with highlights/notes/tags)
 - `POST /passages/{id}/highlights` · `POST /notes` · `PUT /notes/{id}` · `POST /passages/{id}/tags`

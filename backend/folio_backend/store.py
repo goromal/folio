@@ -137,6 +137,60 @@ def get_last_position(conn):
         "SELECT * FROM reading_position ORDER BY updated_at DESC LIMIT 1").fetchone()
 
 
+# ---- library: books + shelves --------------------------------------------
+def list_books(conn, book_id=None):
+    """Books with their shelf memberships and last-read time (for library sorts)."""
+    where, args = ("WHERE b.id = ?", (book_id,)) if book_id is not None else ("", ())
+    rows = conn.execute(
+        "SELECT b.id, b.title, b.author, b.created_at, rp.updated_at AS last_read_at "
+        "FROM books b LEFT JOIN reading_position rp ON rp.book_id = b.id "
+        f"{where} ORDER BY b.id", args).fetchall()
+    shelves = {}
+    for r in conn.execute("SELECT book_id, shelf_id FROM book_shelves ORDER BY shelf_id"):
+        shelves.setdefault(r["book_id"], []).append(r["shelf_id"])
+    return [dict(r, shelf_ids=shelves.get(r["id"], [])) for r in rows]
+
+
+def list_shelves(conn):
+    return conn.execute(
+        "SELECT s.id, s.name, COUNT(bs.book_id) AS book_count FROM shelves s "
+        "LEFT JOIN book_shelves bs ON bs.shelf_id = s.id "
+        "GROUP BY s.id ORDER BY s.name COLLATE NOCASE").fetchall()
+
+
+def get_shelf(conn, shelf_id):
+    return conn.execute(
+        "SELECT s.id, s.name, COUNT(bs.book_id) AS book_count FROM shelves s "
+        "LEFT JOIN book_shelves bs ON bs.shelf_id = s.id "
+        "WHERE s.id = ? GROUP BY s.id", (shelf_id,)).fetchone()
+
+
+def create_shelf(conn, name):
+    cur = conn.execute(
+        "INSERT INTO shelves (name, created_at) VALUES (?, ?)", (name, _now()))
+    conn.commit()
+    return cur.lastrowid
+
+
+def rename_shelf(conn, shelf_id, name):
+    conn.execute("UPDATE shelves SET name = ? WHERE id = ?", (name, shelf_id))
+    conn.commit()
+
+
+def delete_shelf(conn, shelf_id):
+    conn.execute("DELETE FROM shelves WHERE id = ?", (shelf_id,))
+    conn.commit()
+
+
+def set_book_shelves(conn, book_id, shelf_ids):
+    """Replace a book's shelf memberships with exactly shelf_ids."""
+    conn.execute("DELETE FROM book_shelves WHERE book_id = ?", (book_id,))
+    conn.executemany(
+        "INSERT INTO book_shelves (book_id, shelf_id) VALUES (?, ?)",
+        [(book_id, sid) for sid in dict.fromkeys(shelf_ids)])
+    conn.commit()
+
+
 # ---- deletes --------------------------------------------------------------
 def delete_book(conn, book_id):
     conn.execute("DELETE FROM books WHERE id = ?", (book_id,))

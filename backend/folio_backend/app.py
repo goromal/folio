@@ -18,6 +18,7 @@ from folio_backend.models import (
     BookOut, ChapterOut, BlockOut, SearchHit,
     PassageIn, PassageOut, HighlightIn, NoteIn, NoteUpdate, TagIn,
     LinkIn, SummaryIn, SummaryUpdate, FocusIn, PositionIn, PositionOut, LeaseHolderIn,
+    ShelfIn, ShelfOut, BookShelvesIn,
 )
 from folio_backend.view import ViewState, focus_event_stream, ChangeBroadcastMiddleware
 
@@ -59,14 +60,55 @@ def create_app(db_path, static_dir=None):
             book_id = ingest.ingest_epub(conn, tmp.name)
         finally:
             os.unlink(tmp.name)
-        row = conn.execute("SELECT id, title, author FROM books WHERE id = ?",
-                           (book_id,)).fetchone()
-        return dict(row)
+        return store.list_books(conn, book_id)[0]
 
     @app.get("/books", response_model=list[BookOut])
     def list_books(conn=Depends(db)):
-        rows = conn.execute("SELECT id, title, author FROM books ORDER BY id").fetchall()
-        return [dict(r) for r in rows]
+        return store.list_books(conn)
+
+    # ---- shelves (library organization) ----
+    def _shelf_name(body):
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(422, "shelf name must not be empty")
+        return name
+
+    @app.get("/shelves", response_model=list[ShelfOut])
+    def list_shelves_ep(conn=Depends(db)):
+        return [dict(r) for r in store.list_shelves(conn)]
+
+    @app.post("/shelves", status_code=201, response_model=ShelfOut)
+    def create_shelf_ep(body: ShelfIn, conn=Depends(db)):
+        try:
+            shelf_id = store.create_shelf(conn, _shelf_name(body))
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "a shelf with that name already exists")
+        return dict(store.get_shelf(conn, shelf_id))
+
+    @app.put("/shelves/{shelf_id}", response_model=ShelfOut)
+    def rename_shelf_ep(shelf_id: int, body: ShelfIn, conn=Depends(db)):
+        if store.get_shelf(conn, shelf_id) is None:
+            raise HTTPException(404, "shelf not found")
+        try:
+            store.rename_shelf(conn, shelf_id, _shelf_name(body))
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "a shelf with that name already exists")
+        return dict(store.get_shelf(conn, shelf_id))
+
+    @app.delete("/shelves/{shelf_id}", status_code=204)
+    def delete_shelf_ep(shelf_id: int, conn=Depends(db)):
+        store.delete_shelf(conn, shelf_id)
+
+    @app.put("/books/{book_id}/shelves", response_model=BookOut)
+    def set_book_shelves_ep(book_id: int, body: BookShelvesIn, conn=Depends(db)):
+        if not store.list_books(conn, book_id):
+            raise HTTPException(404, "book not found")
+        try:
+            store.set_book_shelves(conn, book_id, body.shelf_ids)
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            raise HTTPException(404, "shelf not found")
+        return store.list_books(conn, book_id)[0]
 
     @app.get("/books/{book_id}/toc", response_model=list[ChapterOut])
     def book_toc(book_id: int, conn=Depends(db)):

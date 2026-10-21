@@ -39,6 +39,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/shelves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Shelves Ep */
+        get: operations["list_shelves_ep_shelves_get"];
+        put?: never;
+        /** Create Shelf Ep */
+        post: operations["create_shelf_ep_shelves_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shelves/{shelf_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rename Shelf Ep */
+        put: operations["rename_shelf_ep_shelves__shelf_id__put"];
+        post?: never;
+        /** Delete Shelf Ep */
+        delete: operations["delete_shelf_ep_shelves__shelf_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/books/{book_id}/shelves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Book Shelves Ep */
+        put: operations["set_book_shelves_ep_books__book_id__shelves_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/books/{book_id}/toc": {
         parameters: {
             query?: never;
@@ -97,7 +150,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List All Passages */
+        get: operations["list_all_passages_passages_get"];
         put?: never;
         /** Create Passage Ep */
         post: operations["create_passage_ep_passages_post"];
@@ -230,6 +284,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/summaries/{summary_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Summary Ep */
+        put: operations["update_summary_ep_summaries__summary_id__put"];
+        post?: never;
+        /** Delete Summary Ep */
+        delete: operations["delete_summary_ep_summaries__summary_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/books/{book_id}/notes": {
         parameters: {
             query?: never;
@@ -349,7 +421,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/summaries/{summary_id}": {
+    "/view/focus": {
         parameters: {
             query?: never;
             header?: never;
@@ -358,9 +430,112 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Set View Focus */
+        post: operations["set_view_focus_view_focus_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/view/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** View Stream */
+        get: operations["view_stream_view_stream_get"];
+        put?: never;
         post?: never;
-        /** Delete Summary Ep */
-        delete: operations["delete_summary_ep_summaries__summary_id__delete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/books/{book_id}/position": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Position Ep */
+        get: operations["get_position_ep_books__book_id__position_get"];
+        /** Save Position Ep */
+        put: operations["save_position_ep_books__book_id__position_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/position": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Last Position Ep */
+        get: operations["get_last_position_ep_position_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lease": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lease Status */
+        get: operations["lease_status_lease_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lease/acquire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Lease Acquire */
+        post: operations["lease_acquire_lease_acquire_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lease/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Lease Release */
+        post: operations["lease_release_lease_release_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -385,10 +560,7 @@ export interface components {
         };
         /** Body_upload_book_books_post */
         Body_upload_book_books_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** BookOut */
@@ -399,6 +571,20 @@ export interface components {
             title: string;
             /** Author */
             author?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Last Read At */
+            last_read_at?: string | null;
+            /**
+             * Shelf Ids
+             * @default []
+             */
+            shelf_ids: number[];
+        };
+        /** BookShelvesIn */
+        BookShelvesIn: {
+            /** Shelf Ids */
+            shelf_ids: number[];
         };
         /** ChapterOut */
         ChapterOut: {
@@ -410,6 +596,13 @@ export interface components {
             order_idx: number;
             /** Parent Id */
             parent_id?: number | null;
+            /** First Block Id */
+            first_block_id?: number | null;
+        };
+        /** FocusIn */
+        FocusIn: {
+            /** Block Id */
+            block_id: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -475,6 +668,24 @@ export interface components {
             /** End Off */
             end_off: number;
         };
+        /** PositionIn */
+        PositionIn: {
+            /** Chapter Id */
+            chapter_id?: number | null;
+            /** Block Id */
+            block_id?: number | null;
+        };
+        /** PositionOut */
+        PositionOut: {
+            /** Book Id */
+            book_id: number;
+            /** Chapter Id */
+            chapter_id?: number | null;
+            /** Block Id */
+            block_id?: number | null;
+            /** Updated At */
+            updated_at: string;
+        };
         /** SearchHit */
         SearchHit: {
             /** Block Id */
@@ -485,6 +696,23 @@ export interface components {
             chapter_id: number | null;
             /** Snippet */
             snippet: string;
+        };
+        /** ShelfIn */
+        ShelfIn: {
+            /** Name */
+            name: string;
+        };
+        /** ShelfOut */
+        ShelfOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Book Count
+             * @default 0
+             */
+            book_count: number;
         };
         /** SummaryIn */
         SummaryIn: {
@@ -500,6 +728,13 @@ export interface components {
              */
             generated_by: string;
         };
+        /** SummaryUpdate */
+        SummaryUpdate: {
+            /** Body */
+            body: string;
+            /** Generated By */
+            generated_by?: string | null;
+        };
         /** TagIn */
         TagIn: {
             /** Name */
@@ -513,6 +748,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
     };
     responses: never;
@@ -578,6 +817,158 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_shelves_ep_shelves_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfOut"][];
+                };
+            };
+        };
+    };
+    create_shelf_ep_shelves_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShelfIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_shelf_ep_shelves__shelf_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shelf_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShelfIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_shelf_ep_shelves__shelf_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shelf_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_book_shelves_ep_books__book_id__shelves_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookShelvesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -690,6 +1081,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_all_passages_passages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
@@ -1085,6 +1496,70 @@ export interface operations {
             };
         };
     };
+    update_summary_ep_summaries__summary_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                summary_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SummaryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_summary_ep_summaries__summary_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                summary_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_book_notes_books__book_id__notes_get: {
         parameters: {
             query?: {
@@ -1297,23 +1772,204 @@ export interface operations {
             };
         };
     };
-    delete_summary_ep_summaries__summary_id__delete: {
+    set_view_focus_view_focus_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FocusIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    view_stream_view_stream_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_position_ep_books__book_id__position_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                summary_id: number;
+                book_id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_position_ep_books__book_id__position_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PositionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PositionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_last_position_ep_position_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    lease_status_lease_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    lease_acquire_lease_acquire_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    lease_release_lease_release_post: {
+        parameters: {
+            query?: {
+                discard?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
             };
             /** @description Validation Error */
             422: {
