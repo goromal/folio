@@ -41,3 +41,15 @@ test('shows a message when nothing matches; Escape clears', async () => {
   await userEvent.type(box, '{Escape}');
   expect(titles()).toHaveLength(5);
 });
+
+test('the clear button empties the search and refocuses it', async () => {
+  render(<TocDrawer chapters={chapters} activeId={1} onSelect={vi.fn()} />);
+  const box = screen.getByRole('searchbox', { name: 'Search chapters' });
+  expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument();
+  await userEvent.type(box, 'ex');
+  await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+  expect(box).toHaveValue('');
+  expect(box).toHaveFocus();
+  expect(titles()).toHaveLength(5);
+  expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument();
+});

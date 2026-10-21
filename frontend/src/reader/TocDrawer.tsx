@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { Chapter } from '../api/client';
 import { fuzzyFilter } from './fuzzy';
+import styles from './TocDrawer.module.css';
 
 /** Scroll only the TOC's own scroll container (scrollIntoView would also move the page). */
 function revealInPane(el: HTMLElement | null | undefined, center: boolean) {
@@ -26,6 +27,7 @@ export function TocDrawer({
   // Keyboard cursor within the filtered results (only meaningful while searching).
   const [cursor, setCursor] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const searching = query.trim() !== '';
 
   const shown = useMemo(() => fuzzyFilter(chapters, query, (c) => c.title), [chapters, query]);
@@ -67,25 +69,29 @@ export function TocDrawer({
   return (
     <nav aria-label="Table of contents">
       <div style={{ position: 'sticky', top: 0, background: 'var(--bg)', paddingBottom: '0.5rem' }}>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Jump to chapter…"
-          aria-label="Search chapters"
-          style={{
-            width: '100%',
-            boxSizing: 'border-box',
-            padding: '0.35rem 0.5rem',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            background: 'var(--bg)',
-            color: 'var(--fg)',
-            font: 'inherit',
-            fontSize: '0.85rem',
-          }}
-        />
+        <div className={styles.searchWrap}>
+          <input
+            ref={inputRef}
+            type="search"
+            className={styles.search}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Jump to chapter…"
+            aria-label="Search chapters"
+          />
+          {query && (
+            <button
+              type="button"
+              className={styles.clear}
+              aria-label="Clear search"
+              title="Clear search"
+              onClick={() => { setQuery(''); inputRef.current?.focus(); }}
+            >
+              ×
+            </button>
+          )}
+        </div>
         {searching && (
           <div style={{ color: 'var(--muted)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
             {shown.length === 0 ? 'No matching chapters' : `${shown.length} of ${chapters.length}`}
