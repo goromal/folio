@@ -20,8 +20,9 @@ function setupTerminal() {
     select: vi.fn(),
   };
   Object.defineProperty(iframe.contentWindow!, 'term', { value: term, configurable: true });
-  const installed = installTerminalControls(iframe, vi.fn());
-  return { iframe, helper, term, ...installed };
+  const onModifiersChange = vi.fn();
+  const installed = installTerminalControls(iframe, vi.fn(), onModifiersChange);
+  return { iframe, helper, term, onModifiersChange, ...installed };
 }
 
 afterEach(() => {
@@ -40,6 +41,60 @@ test('sends an on-screen key to xterm with its legacy key code', () => {
   const event = keydown.mock.calls[0][0] as KeyboardEvent;
   expect(event.key).toBe('ArrowLeft');
   expect(event.keyCode).toBe(37);
+  cleanup();
+});
+
+function recordKeys(helper: HTMLElement) {
+  const keys: Array<{ key: string; keyCode: number; ctrl: boolean; shift: boolean }> = [];
+  helper.addEventListener('keydown', (e) => {
+    keys.push({ key: e.key, keyCode: e.keyCode, ctrl: e.ctrlKey, shift: e.shiftKey });
+  });
+  return keys;
+}
+
+test('sticky Ctrl and Shift apply to the next on-screen key, then release', () => {
+  const { controls, cleanup, helper, onModifiersChange } = setupTerminal();
+  const keys = recordKeys(helper);
+
+  controls.toggleCtrl();
+  controls.toggleShift();
+  expect(onModifiersChange).toHaveBeenLastCalledWith({ ctrl: true, shift: true });
+  controls.pressKey('ArrowLeft', 37);
+  controls.pressKey('Tab', 9);
+
+  expect(keys).toEqual([
+    { key: 'ArrowLeft', keyCode: 37, ctrl: true, shift: true },
+    { key: 'Tab', keyCode: 9, ctrl: false, shift: false },
+  ]);
+  expect(onModifiersChange).toHaveBeenLastCalledWith({ ctrl: false, shift: false });
+  cleanup();
+});
+
+test('sticky Ctrl turns the next phone-keyboard letter into a Ctrl key', () => {
+  const { iframe, controls, cleanup, helper } = setupTerminal();
+  const keys = recordKeys(helper);
+  const input = vi.fn();
+  helper.addEventListener('input', input);
+
+  controls.toggleCtrl();
+  const win = iframe.contentWindow as Window & typeof globalThis;
+  helper.dispatchEvent(new win.InputEvent('input', {
+    data: 'r', inputType: 'insertText', bubbles: true,
+  }));
+
+  expect(input).not.toHaveBeenCalled();
+  expect(keys).toEqual([{ key: 'r', keyCode: 82, ctrl: true, shift: false }]);
+  cleanup();
+});
+
+test('internal keystrokes are not captured by an armed Ctrl', () => {
+  const { controls, cleanup, helper } = setupTerminal();
+  const keys = recordKeys(helper);
+
+  controls.toggleCtrl();
+  controls.sendKey('[', 219);
+
+  expect(keys).toEqual([{ key: '[', keyCode: 219, ctrl: false, shift: false }]);
   cleanup();
 });
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { agentApi, AgentError, type AgentSession } from '../api/client';
-import { installTerminalControls, type TerminalControls } from './terminalControls';
+import { installTerminalControls, type Modifiers, type TerminalControls } from './terminalControls';
 import styles from './AgentPanel.module.css';
 
 const STORAGE_KEY = 'folio.agentSession';
@@ -43,13 +43,14 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
   const frameRef = useRef<HTMLIFrameElement>(null);
   const controlsRef = useRef<TerminalControls | null>(null);
   const [selecting, setSelecting] = useState(false);
+  const [modifiers, setModifiers] = useState<Modifiers>({ ctrl: false, shift: false });
   const [copyLabel, setCopyLabel] = useState('Copy');
   const [pasteLabel, setPasteLabel] = useState('Paste');
 
   // Same-origin ttyd controls and touch gestures, mirroring Agent UI.
   useEffect(() => {
     if (phase !== 'session' || !frameRef.current) return;
-    const installed = installTerminalControls(frameRef.current, setSelecting);
+    const installed = installTerminalControls(frameRef.current, setSelecting, setModifiers);
     controlsRef.current = installed.controls;
     return () => {
       controlsRef.current = null;
@@ -231,17 +232,27 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
             <button type="button" onClick={() => flashResult(
               controlsRef.current?.paste.bind(controlsRef.current), setPasteLabel, 'Paste',
             )}>{pasteLabel}</button>
+            <button
+              type="button" className={modifiers.ctrl ? styles.active : undefined}
+              aria-pressed={modifiers.ctrl} aria-label="Control (applies to next key)"
+              onClick={() => controlsRef.current?.toggleCtrl()}
+            >Ctrl</button>
+            <button
+              type="button" className={modifiers.shift ? styles.active : undefined}
+              aria-pressed={modifiers.shift} aria-label="Shift (applies to next key)"
+              onClick={() => controlsRef.current?.toggleShift()}
+            >Shift</button>
             {[
               ['Esc', 'Escape', 27], ['Tab', 'Tab', 9], ['↑', 'ArrowUp', 38],
               ['↓', 'ArrowDown', 40], ['←', 'ArrowLeft', 37], ['→', 'ArrowRight', 39],
               ['↵', 'Enter', 13],
             ].map(([label, key, code]) => (
               <button key={key} type="button" aria-label={String(key)} onClick={() =>
-                controlsRef.current?.sendKey(String(key), Number(code))
+                controlsRef.current?.pressKey(String(key), Number(code))
               }>{label}</button>
             ))}
             <button type="button" aria-label="Control C" onClick={() =>
-              controlsRef.current?.sendKey('c', 67, true)
+              controlsRef.current?.pressKey('c', 67, true)
             }>^C</button>
           </nav>
         </div>
