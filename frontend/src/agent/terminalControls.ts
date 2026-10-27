@@ -21,9 +21,15 @@ type Terminal = {
 export type TerminalControls = {
   copy(): Promise<'Copied!' | 'Empty' | 'Not ready'>;
   paste(): Promise<'Pasted!' | 'Cancelled' | 'Not ready'>;
-  sendKey(key: string, code: number, ctrl?: boolean): void;
+  sendKey(key: string, code: number, ctrl?: boolean, shift?: boolean): void;
+  // Sends an on-screen key with any armed sticky modifiers, then releases them.
+  pressKey(key: string, code: number, ctrl?: boolean): void;
+  toggleCtrl(): void;
+  toggleShift(): void;
   toggleSelection(): void;
 };
+
+export type Modifiers = { ctrl: boolean; shift: boolean };
 
 // Controls and touch gestures for the same-origin ttyd iframe. This mirrors the
 // Agent UI terminal wrapper: touch-drag normally scrolls tmux history, while
@@ -31,6 +37,7 @@ export type TerminalControls = {
 export function installTerminalControls(
   iframe: HTMLIFrameElement,
   onSelectingChange: (selecting: boolean) => void,
+  onModifiersChange: (modifiers: Modifiers) => void = () => {},
 ): { controls: TerminalControls; cleanup: () => void } {
   const STEP = 12;
   let selecting = false;
@@ -39,6 +46,9 @@ export function installTerminalControls(
   let scrollMode = false;
   let scrollOffset = 0;
   let doc: Document | null = null;
+  let ctrlArmed = false;
+  let shiftArmed = false;
+  let swallowComposition = false;
 
   function terminal(): Terminal | null {
     try {
@@ -48,18 +58,18 @@ export function installTerminalControls(
     }
   }
 
-  function helperTextarea(): HTMLElement | null {
+  function helperTextarea(): HTMLTextAreaElement | null {
     try {
       return (
-        (iframe.contentDocument?.querySelector('.xterm-helper-textarea') as HTMLElement | null) ||
-        (iframe.contentDocument?.querySelector('textarea') as HTMLElement | null)
+        (iframe.contentDocument?.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null) ||
+        (iframe.contentDocument?.querySelector('textarea') as HTMLTextAreaElement | null)
       );
     } catch {
       return null;
     }
   }
 
-  function sendKey(key: string, code: number, ctrl?: boolean): void {
+  function sendKey(key: string, code: number, ctrl?: boolean, shift?: boolean): void {
     const ta = helperTextarea();
     const win = iframe.contentWindow as (Window & typeof globalThis) | null;
     if (!ta || !win) return;
@@ -67,12 +77,85 @@ export function installTerminalControls(
     const event = new win.KeyboardEvent('keydown', {
       key,
       ctrlKey: !!ctrl,
+      shiftKey: !!shift,
       bubbles: true,
       cancelable: true,
     });
     Object.defineProperty(event, 'keyCode', { get: () => code });
     Object.defineProperty(event, 'which', { get: () => code });
     ta.dispatchEvent(event);
+  }
+
+  // Sticky Ctrl/Shift: the next key is sent with the armed modifiers held.
+  // Ctrl also applies to letters typed on the phone keyboard, which arrive as
+  // input/composition events rather than keydowns, so those are intercepted
+  // ahead of xterm. Shift applies to bar keys (Shift+Tab, Shift+arrows); typed
+  // text clears it, since the phone keyboard has its own shift.
+  const CTRL_CODES: Record<string, number> = { ' ': 32, '[': 219, '\\': 220, ']': 221 };
+
+  function setModifiers(ctrl: boolean, shift: boolean): void {
+    ctrlArmed = ctrl;
+    shiftArmed = shift;
+    onModifiersChange({ ctrl, shift });
+  }
+
+  function ctrlCode(ch: string): number | undefined {
+    return /^[a-z]$/i.test(ch) ? ch.toUpperCase().charCodeAt(0) : CTRL_CODES[ch];
+  }
+
+  function pressKey(key: string, code: number, ctrl?: boolean): void {
+    const withCtrl = !!ctrl || ctrlArmed;
+    const withShift = shiftArmed;
+    setModifiers(false, false);
+    sendKey(key, code, withCtrl, withShift);
+  }
+
+  function sendCtrlChar(data: string): void {
+    const ch = data.slice(-1);
+    const code = ctrlCode(ch);
+    const withShift = shiftArmed;
+    setModifiers(false, false);
+    if (code) sendKey(ch.toLowerCase(), code, true, withShift);
+  }
+
+  function clearHelper(): void {
+    const ta = helperTextarea();
+    if (ta) ta.value = '';
+  }
+
+  function onCtrlKeydown(event: KeyboardEvent): void {
+    if (shiftArmed && !ctrlArmed && event.isTrusted && event.key.length === 1) setModifiers(false, false);
+    // Our own synthetic keydowns pass; 'Unidentified'/'Process' fall to onCtrlInput.
+    if (!ctrlArmed || !event.isTrusted || event.ctrlKey || event.key.length !== 1 || !ctrlCode(event.key)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    sendCtrlChar(event.key);
+  }
+
+  function onCtrlComposition(event: CompositionEvent): void {
+    if (event.type === 'compositionstart' && ctrlArmed) swallowComposition = true;
+    if (!swallowComposition) return;
+    event.stopImmediatePropagation();
+    if (event.type === 'compositionend') {
+      swallowComposition = false;
+      clearHelper();
+    }
+    if (ctrlArmed && event.data) {
+      sendCtrlChar(event.data);
+      // Blur/refocus makes the IME commit, so its compositionend is swallowed.
+      const ta = helperTextarea();
+      if (ta && swallowComposition) { ta.blur(); ta.focus(); }
+    }
+  }
+
+  function onCtrlInput(event: InputEvent): void {
+    if (shiftArmed && !ctrlArmed && event.data) setModifiers(false, false);
+    if (!ctrlArmed && !swallowComposition) return;
+    event.stopImmediatePropagation();
+    if (ctrlArmed && event.data && !event.isComposing) {
+      sendCtrlChar(event.data);
+      clearHelper();
+    }
   }
 
   function setSelecting(enabled: boolean): void {
@@ -180,12 +263,16 @@ export function installTerminalControls(
     else scrollY = null;
   }
 
+  const COMPOSITION_EVENTS = ['compositionstart', 'compositionupdate', 'compositionend'];
   function detach(): void {
     if (!doc) return;
     doc.removeEventListener('touchstart', onStart as EventListener, true);
     doc.removeEventListener('touchmove', onMove as EventListener, true);
     doc.removeEventListener('touchend', onEnd as EventListener, true);
     doc.removeEventListener('touchcancel', onCancel as EventListener, true);
+    doc.removeEventListener('keydown', onCtrlKeydown as EventListener, true);
+    doc.removeEventListener('input', onCtrlInput as EventListener, true);
+    for (const type of COMPOSITION_EVENTS) doc.removeEventListener(type, onCtrlComposition as EventListener, true);
     doc = null;
   }
   function attach(): void {
@@ -199,6 +286,9 @@ export function installTerminalControls(
       doc.addEventListener('touchmove', onMove as EventListener, options);
       doc.addEventListener('touchend', onEnd as EventListener, options);
       doc.addEventListener('touchcancel', onCancel as EventListener, { capture: true });
+      doc.addEventListener('keydown', onCtrlKeydown as EventListener, true);
+      doc.addEventListener('input', onCtrlInput as EventListener, true);
+      for (const type of COMPOSITION_EVENTS) doc.addEventListener(type, onCtrlComposition as EventListener, true);
     } catch {
       /* iframe not ready or not same-origin */
     }
@@ -290,6 +380,9 @@ export function installTerminalControls(
     copy,
     paste,
     sendKey,
+    pressKey,
+    toggleCtrl() { setModifiers(!ctrlArmed, shiftArmed); },
+    toggleShift() { setModifiers(ctrlArmed, !shiftArmed); },
     toggleSelection() {
       const term = terminal();
       if (!term) return;
@@ -306,6 +399,7 @@ export function installTerminalControls(
       iframe.removeEventListener('load', attach);
       detach();
       if (selecting) setSelecting(false);
+      if (ctrlArmed || shiftArmed) setModifiers(false, false);
     },
   };
 }
