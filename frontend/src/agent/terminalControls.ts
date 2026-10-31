@@ -1,4 +1,4 @@
-type TerminalLine = { translateToString(trimRight: boolean): string };
+type TerminalLine = { isWrapped?: boolean; translateToString(trimRight: boolean): string };
 
 type Terminal = {
   cols: number;
@@ -20,6 +20,8 @@ type Terminal = {
 
 export type TerminalControls = {
   copy(): Promise<'Copied!' | 'Empty' | 'Not ready'>;
+  // Opens the selected URL, else the latest one; null once a tab is opened.
+  openUrl(): 'No URL' | 'Not ready' | null;
   paste(): Promise<'Pasted!' | 'Cancelled' | 'Not ready'>;
   sendKey(key: string, code: number, ctrl?: boolean, shift?: boolean): void;
   // Sends an on-screen key with any armed sticky modifiers, then releases them.
@@ -294,9 +296,14 @@ export function installTerminalControls(
     }
   }
 
+  const URL_START = /^\s*https?:\/\//i;
+
   function terminalText(term: Terminal): string {
     const selected = term.getSelection();
-    if (selected) return selected;
+    if (selected) {
+      // A URL selected across terminal rows can contain line breaks.
+      return URL_START.test(selected) ? selected.replace(/\s+/g, '') : selected;
+    }
     const buffer = term.buffer.active;
     const lines: string[] = [];
     const end = Math.min(buffer.length, buffer.viewportY + term.rows);
@@ -305,6 +312,51 @@ export function installTerminalControls(
     }
     while (lines.length && !lines[lines.length - 1]) lines.pop();
     return lines.join('\n');
+  }
+
+  // The selected URL, else the last URL anywhere in the buffer (Agent UI's
+  // latestUrl). tmux redraws a long URL as separate full-width rows whose
+  // isWrapped flag is false, so a URL reaching the row edge is joined too.
+  function latestUrl(term: Terminal): string | null {
+    const selected = term.getSelection();
+    if (selected && URL_START.test(selected)) return selected.replace(/\s+/g, '');
+    const buffer = term.buffer.active;
+    let latest: string | null = null;
+    for (let row = 0; row < buffer.length; row += 1) {
+      const line = buffer.getLine(row);
+      if (!line) continue;
+      const text = line.translateToString(true);
+      const urls = /https?:\/\/[^\s<>"']+/gi;
+      let match: RegExpExecArray | null;
+      while ((match = urls.exec(text))) {
+        let url = match[0];
+        let part = text;
+        let nextRow = row + 1;
+        const atEnd = match.index + url.length === text.length;
+        while (atEnd && nextRow < buffer.length) {
+          const nextLine = buffer.getLine(nextRow);
+          if (!nextLine) break;
+          const nextText = nextLine.translateToString(true);
+          if (!(nextLine.isWrapped || part.length >= term.cols) ||
+              !/^[^\s<>"']+$/.test(nextText) || URL_START.test(nextText)) break;
+          url += nextText;
+          part = nextText;
+          nextRow += 1;
+        }
+        latest = url.replace(/[.,;:!?)]*$/, '');
+      }
+    }
+    return latest;
+  }
+
+  // Synchronous so window.open stays inside the click's user activation.
+  function openUrl(): 'No URL' | 'Not ready' | null {
+    const term = terminal();
+    if (!term) return 'Not ready';
+    const url = latestUrl(term);
+    if (!url) return 'No URL';
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return null;
   }
 
   function legacyCopy(text: string): boolean {
@@ -378,6 +430,7 @@ export function installTerminalControls(
 
   const controls: TerminalControls = {
     copy,
+    openUrl,
     paste,
     sendKey,
     pressKey,
