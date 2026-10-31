@@ -46,6 +46,7 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
   const [modifiers, setModifiers] = useState<Modifiers>({ ctrl: false, shift: false });
   const [copyLabel, setCopyLabel] = useState('Copy');
   const [pasteLabel, setPasteLabel] = useState('Paste');
+  const [openLabel, setOpenLabel] = useState('Open URL');
 
   // Same-origin ttyd controls and touch gestures, mirroring Agent UI.
   useEffect(() => {
@@ -229,6 +230,13 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
             <button type="button" onClick={() => flashResult(
               controlsRef.current?.copy.bind(controlsRef.current), setCopyLabel, 'Copy',
             )}>{copyLabel}</button>
+            <button
+              type="button" title="Open the selected URL, or the latest URL in the terminal"
+              onClick={() => {
+                const result = controlsRef.current ? controlsRef.current.openUrl() : 'Not ready';
+                if (result) void flashResult(async () => result, setOpenLabel, 'Open URL');
+              }}
+            >{openLabel}</button>
             <button type="button" onClick={() => flashResult(
               controlsRef.current?.paste.bind(controlsRef.current), setPasteLabel, 'Paste',
             )}>{pasteLabel}</button>

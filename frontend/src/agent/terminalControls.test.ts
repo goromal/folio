@@ -11,7 +11,11 @@ function setupTerminal() {
     cols: 80,
     rows: 24,
     buffer: {
-      active: { length: 1, viewportY: 0, getLine: () => undefined },
+      active: {
+        length: 1,
+        viewportY: 0,
+        getLine: (_row: number): { translateToString(): string } | undefined => undefined,
+      },
     },
     clearSelection: vi.fn(),
     focus: vi.fn(),
@@ -112,5 +116,31 @@ test('copies the selection and pastes clipboard text through xterm', async () =>
   expect(await controls.paste()).toBe('Pasted!');
   expect(readText).toHaveBeenCalledOnce();
   expect(term.paste).toHaveBeenCalledWith('pasted input');
+  cleanup();
+});
+
+test('opens the latest URL, joining tmux rows that split it at the edge', () => {
+  const { controls, cleanup, term } = setupTerminal();
+  const rows = [
+    'see https://old.example/a for details',
+    'auth: https://example.com/oauth?code=abcdefgh',
+    'ijkl.',
+  ];
+  term.cols = rows[1].length;
+  term.buffer.active = {
+    length: rows.length,
+    viewportY: 0,
+    getLine: (row: number) => ({ translateToString: () => rows[row] }),
+  };
+  term.getSelection.mockReturnValue('');
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+
+  expect(controls.openUrl()).toBeNull();
+  expect(open).toHaveBeenCalledWith(
+    'https://example.com/oauth?code=abcdefghijkl', '_blank', 'noopener,noreferrer',
+  );
+
+  term.buffer.active = { length: 0, viewportY: 0, getLine: () => undefined };
+  expect(controls.openUrl()).toBe('No URL');
   cleanup();
 });
