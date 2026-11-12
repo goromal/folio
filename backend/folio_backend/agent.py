@@ -16,6 +16,19 @@ SESSION_RE = re.compile(
 )
 
 
+def forget_restore_record(socket, name):
+    """Drop the record anixpkgs' agent-session-run keeps so a reboot can bring
+    the session back (~/.local/state/agent-sessions/<socket>/<name>.json): a
+    session the user killed must stay dead."""
+    path = os.path.join(
+        os.path.expanduser("~"), ".local", "state", "agent-sessions", socket, f"{name}.json"
+    )
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+
+
 class AgentSessions:
     def __init__(
         self, agents, spool_dir, tmux_bin="tmux", socket="folio-agent",
@@ -92,6 +105,7 @@ class AgentSessions:
         subprocess.run(
             self._base() + ["kill-session", "-t", name], check=False, timeout=10
         )
+        forget_restore_record(self.socket, name)
         workdir = self._workdir(match.group("id"))
         if (
             os.path.commonpath([self.spool_dir, os.path.abspath(workdir)])
