@@ -5,6 +5,20 @@ import styles from './AgentPanel.module.css';
 
 const STORAGE_KEY = 'folio.agentSession';
 
+// Masked text field instead of type="password" so the browser never offers to
+// save it; falls back to a real password field where the CSS mask is unsupported.
+const SECRET_INPUT_PROPS = {
+  type: typeof CSS?.supports === 'function' && CSS.supports('-webkit-text-security', 'disc') ? 'text' : 'password',
+  autoComplete: 'off',
+  autoCapitalize: 'off',
+  autoCorrect: 'off',
+  spellCheck: false,
+  'data-1p-ignore': 'true',
+  'data-lpignore': 'true',
+  'data-bwignore': 'true',
+  'data-form-type': 'other',
+} as const;
+
 // localStorage can throw (private mode, locked-down webview); never let that
 // break the auth flow — treat storage as a best-effort convenience.
 function readStored(): string | null {
@@ -184,7 +198,7 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
           <label className={styles.field}>
             Companion password
             <input
-              type="password" value={password} autoComplete="current-password"
+              {...SECRET_INPUT_PROPS} className={styles.secret} value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>
