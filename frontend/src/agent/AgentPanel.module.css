@@ -25,3 +25,4 @@
 .agents { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
 .msg { color: var(--fg); }
 .error { color: #f2777a; }
+.secret { -webkit-text-security: disc; }
