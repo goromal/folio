@@ -140,6 +140,25 @@ test('auto-grows the field to its content', () => {
   expect(textarea.style.height).toBe('82px');
 });
 
+test('fits again once a detached host is attached (budget/Assistant mount pattern)', async () => {
+  const rafCallbacks: Array<() => void> = [];
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+    rafCallbacks.push(() => cb(0));
+    return rafCallbacks.length;
+  });
+  const host = document.createElement('div');
+  // Not appended to document.body: mirrors budget/Assistant mounting into a
+  // host that is only inserted into the page afterward.
+  const { form, textarea } = mountComposer(host, { draftKey: KEY, send: vi.fn() });
+  expect(form.isConnected).toBe(false);
+  const fitSpy = vi.spyOn(textarea.style, 'height', 'set');
+  document.body.appendChild(host);
+  Object.defineProperty(textarea, 'scrollHeight', { configurable: true, get: () => 40 });
+  expect(rafCallbacks).toHaveLength(1);
+  rafCallbacks[0]();
+  expect(fitSpy).toHaveBeenCalledWith('42px');
+});
+
 test('a localStorage that throws does not break it', async () => {
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied'); });
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied'); });
