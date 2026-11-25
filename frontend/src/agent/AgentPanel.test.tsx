@@ -9,7 +9,7 @@ vi.mock('../api/client', async (importActual) => {
     ...actual, // keep AgentError et al. real
     agentApi: {
       authCheck: vi.fn(), login: vi.fn(), config: vi.fn(),
-      listSessions: vi.fn(), spawn: vi.fn(), kill: vi.fn(),
+      listSessions: vi.fn(), spawn: vi.fn(), kill: vi.fn(), send: vi.fn(),
     },
   };
 });
@@ -77,6 +77,40 @@ test('close session kills it and returns to the picker', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Close session' }));
   expect(agentApi.kill).toHaveBeenCalledWith('folio-agent--claude--0123abcd', 'C');
   expect(await screen.findByText('Start an agent session')).toBeInTheDocument();
+});
+
+test('an open session renders the composer between the terminal and the key bar', async () => {
+  mock(agentApi.authCheck).mockResolvedValue(true);
+  mock(agentApi.listSessions).mockResolvedValue([
+    { name: 'folio-agent--claude--0123abcd', agent: 'claude', created: 1, attached: 0 },
+  ]);
+  mock(agentApi.send).mockResolvedValue(undefined);
+  localStorage.setItem('folio-agent-draft:folio-agent--claude--0123abcd', 'draft');
+  render(<AgentPanel active />);
+  const field = await screen.findByLabelText<HTMLTextAreaElement>('Message to send');
+  expect(field.value).toBe('draft');
+  const frame = screen.getByTitle('Agent terminal');
+  const keys = screen.getByRole('navigation', { name: 'Terminal keys' });
+  const form = field.closest('form')!;
+  expect(frame.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(form.compareDocumentPosition(keys) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  await userEvent.type(field, ' more');
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  expect(agentApi.send).toHaveBeenCalledWith('folio-agent--claude--0123abcd', 'draft more', 'C');
+  await waitFor(() => expect(field.value).toBe(''));
+});
+
+test('closing the session removes the composer', async () => {
+  mock(agentApi.authCheck).mockResolvedValue(true);
+  mock(agentApi.listSessions).mockResolvedValue([
+    { name: 'folio-agent--claude--0123abcd', agent: 'claude', created: 1, attached: 0 },
+  ]);
+  mock(agentApi.kill).mockResolvedValue(undefined);
+  render(<AgentPanel active />);
+  await screen.findByLabelText('Message to send');
+  await userEvent.click(screen.getByRole('button', { name: 'Close session' }));
+  await screen.findByText('Start an agent session');
+  expect(screen.queryByLabelText('Message to send')).toBeNull();
 });
 
 test('a failed login shows an error', async () => {

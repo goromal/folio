@@ -200,6 +200,24 @@ test('spawn sends csrf header and agent body', async () => {
   vi.unstubAllGlobals();
 });
 
+test('send posts composer text with the csrf header', async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+  vi.stubGlobal('fetch', fetchMock);
+  await expect(agentApi.send('folio-agent--claude--0123abcd', 'hi', 'CSRF')).resolves.toBeUndefined();
+  const [url, init] = fetchMock.mock.calls[0];
+  expect(url).toContain('/agent/sessions/folio-agent--claude--0123abcd/send');
+  expect(init.method).toBe('POST');
+  expect(init.headers['x-csrf-token']).toBe('CSRF');
+  expect(JSON.parse(init.body)).toEqual({ text: 'hi' });
+  vi.unstubAllGlobals();
+});
+
+test('send rejects on a failed post', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: 'err' }));
+  await expect(agentApi.send('folio-agent--claude--0123abcd', 'hi', 'CSRF')).rejects.toThrow('500');
+  vi.unstubAllGlobals();
+});
+
 test('subscribeEvents delivers parsed events and unsubscribes', async () => {
   const { subscribeEvents } = await import('./client');
   (globalThis as unknown as { EventSource: unknown }).EventSource = FakeEventSource;

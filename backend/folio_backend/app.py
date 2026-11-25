@@ -346,6 +346,7 @@ def create_app(db_path, static_dir=None):
             config=os.environ.get("FOLIO_AGENT_TMUX_CONFIG") or None,
             session_command=os.environ.get(
                 "FOLIO_AGENT_SESSION_CMD", "folio-agent-session"),
+            send_command=os.environ.get("FOLIO_AGENT_SEND_CMD", "agent-send"),
         )
         app.include_router(create_agent_router(_agent_auth, _sessions))
 

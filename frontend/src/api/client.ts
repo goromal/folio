@@ -221,4 +221,7 @@ export const agentApi = {
     req<{ name: string }>('/agent/sessions', csrfInit('POST', csrf, { agent })),
   kill: (name: string, csrf: string) =>
     req<void>(`/agent/sessions/${encodeURIComponent(name)}`, csrfInit('DELETE', csrf)),
+  // Composer text: the backend pastes it into the session's tmux pane.
+  send: (name: string, text: string, csrf: string) =>
+    req<void>(`/agent/sessions/${encodeURIComponent(name)}/send`, csrfInit('POST', csrf, { text })),
 };

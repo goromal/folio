@@ -115,6 +115,40 @@ class AgentSessionsTest(unittest.TestCase):
         mgr.spawn("claude")
         self.assertNotIn("-f", self.calls[-1])
 
+    def test_send_pipes_text_to_send_command(self):
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append((list(cmd), kwargs))
+
+        subprocess.run = fake_run
+        mgr = AgentSessions(
+            agents=("claude", "codex"), spool_dir=self.spool, tmux_bin="tmux",
+            socket="folio-agent", config=None,
+            session_command="folio-agent-session", send_command="/x/agent-send",
+        )
+        name = "folio-agent--claude--0123abcd"
+        mgr.send(name, "hi")
+        self.assertEqual(calls[-1], (
+            ["/x/agent-send", "-L", "folio-agent", name],
+            {"input": "hi", "encoding": "utf-8", "check": True, "timeout": 10},
+        ))
+
+    def test_send_command_defaults_to_agent_send(self):
+        self.assertEqual(
+            AgentSessions(agents=("claude",), spool_dir=self.spool).send_command,
+            "agent-send",
+        )
+
+    def test_send_rejects_bad_name_before_running(self):
+        subprocess.run = self._fake_run()
+        mgr = self._mgr()
+        with self.assertRaises(ValueError):
+            mgr.send("../../etc/passwd", "hi")
+        with self.assertRaises(ValueError):
+            mgr.send("folio-agent--gemini--0123abcd", "hi")
+        self.assertEqual(self.calls, [])
+
     def test_list_returns_empty_on_nonzero_returncode(self):
         subprocess.run = self._fake_run(_Result(stdout="", returncode=1))
         self.assertEqual(self._mgr().list(), [])

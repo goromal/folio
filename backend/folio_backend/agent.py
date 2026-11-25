@@ -33,6 +33,7 @@ class AgentSessions:
     def __init__(
         self, agents, spool_dir, tmux_bin="tmux", socket="folio-agent",
         config=None, session_command="folio-agent-session",
+        send_command="agent-send",
     ):
         self.agents = tuple(a for a in agents if SAFE_AGENT.fullmatch(a))
         self.spool_dir = os.path.abspath(spool_dir)
@@ -40,6 +41,7 @@ class AgentSessions:
         self.socket = socket
         self.config = config
         self.session_command = session_command
+        self.send_command = send_command
 
     def _base(self):
         return [self.tmux_bin, "-L", self.socket]
@@ -97,6 +99,17 @@ class AgentSessions:
             shutil.rmtree(workdir, ignore_errors=True)
             raise
         return name
+
+    def send(self, name, text):
+        """Type text into the session as one bracketed paste, then Enter (via
+        anixpkgs' agent-send, shared with Agent UI)."""
+        match = SESSION_RE.fullmatch(name)
+        if not match or match.group("agent") not in self.agents:
+            raise ValueError("invalid session name")
+        subprocess.run(
+            [self.send_command, "-L", self.socket, name],
+            input=text, encoding="utf-8", check=True, timeout=10,
+        )
 
     def kill(self, name):
         match = SESSION_RE.fullmatch(name)

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { agentApi, AgentError, type AgentSession } from '../api/client';
 import { installTerminalControls, type Modifiers, type TerminalControls } from './terminalControls';
+import { mountComposer } from './composer';
 import styles from './AgentPanel.module.css';
 
 const STORAGE_KEY = 'folio.agentSession';
@@ -55,6 +56,7 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
   const [busy, setBusy] = useState(false);
   const initialized = useRef(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<TerminalControls | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [modifiers, setModifiers] = useState<Modifiers>({ ctrl: false, shift: false });
@@ -72,6 +74,18 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
       installed.cleanup();
     };
   }, [phase, session]);
+
+  // Native composer (port of flasks' shared agent_composer.js): typed text is
+  // posted to the backend, which pastes it into the tmux pane via agent-send.
+  useEffect(() => {
+    const host = composerRef.current;
+    if (phase !== 'session' || !session || !host) return;
+    const composer = mountComposer(host, {
+      draftKey: `folio-agent-draft:${session}`,
+      send: (text) => agentApi.send(session, text, csrf),
+    });
+    return () => composer.form.remove();
+  }, [phase, session, csrf]);
 
   const flashResult = async (
     action: (() => Promise<string>) | undefined,
@@ -233,6 +247,7 @@ export function AgentPanel({ active, hidden }: { active: boolean; hidden?: boole
             title="Agent terminal"
             src={`/folio/agent/terminal/?arg=${encodeURIComponent(session)}`}
           />
+          <div ref={composerRef} className={styles.composer} />
           <nav className={styles.keys} aria-label="Terminal keys">
             <button
               type="button" className={selecting ? styles.active : undefined}
